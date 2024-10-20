@@ -8,7 +8,7 @@ const Details = () => {
       <div className="user">
         <img src="./avatar.png" alt="" />
         <h2>Safina Promity</h2>
-        <p>Lorem ipsum dolor, sit arpun here is a good way to lerarn things</p>
+        <p>Lorem ipsum dolor</p>
       </div>
       {/* ----- INFO ----- */}
       <div className="info">
@@ -63,7 +63,9 @@ const Details = () => {
         </div>
 
         {/* ----- BLOCK ----- */}
-        <button className="btn">Block User</button>
+        <button className="btn-blk">Block User</button>
+        {/* ----- LOGOUT ----- */}
+        <button className="btn-lgout">Log Out</button>
       </div>
     </div>
   );
