@@ -22,7 +22,6 @@ const Chat = () => {
           <div className="texts">
             <span>Safina Promity</span>
             <p>I am safina</p>
-            <span>1 min ago</span>
           </div>
         </div>
         {/* ---- ICONS ---- */}

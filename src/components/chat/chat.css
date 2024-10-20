@@ -66,12 +66,13 @@
     gap: 20px;
 
     .message {
-      max-width: 70%;
+      max-width: 78%;
       display: flex;
       gap: 20px;
 
       &.own {
         align-self: flex-end;
+        max-width: 70%;
 
         .texts {
           p {
