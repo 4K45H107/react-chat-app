@@ -3,9 +3,10 @@ import List from "./components/List/List";
 import Chat from "./components/Chat/Chat";
 import Details from "./components/Details/Details";
 import Login from "./components/login/Login";
+import Notification from "./components/notification/Notification";
 
 const App = () => {
-  const user = false;
+  const user = true;
 
   return (
     <div className="container">
@@ -18,6 +19,8 @@ const App = () => {
           <Details />
         </>
       )}
+
+      <Notification />
     </div>
   );
 };
