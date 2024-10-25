@@ -1,9 +1,17 @@
 import React, { useState } from "react";
 import "./Login.css";
 import { toast } from "react-toastify";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { auth, db } from "../../lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import upload from "../../lib/upload";
 
 const Login = () => {
   const [avatar, setAvatar] = useState({ file: null, url: "" });
+  const [loading, setLoading] = useState(false);
 
   const handleAvatar = (e) => {
     if (!e.target.files.length) return;
@@ -12,9 +20,54 @@ const Login = () => {
     setAvatar({ file, url: URL.createObjectURL(file) });
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    toast.success("Account created successfully!");
+    setLoading(true);
+
+    const formData = new FormData(e.target);
+    const {email, password } = Object.fromEntries(formData);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData(e.target);
+    const { username, email, password } = Object.fromEntries(formData);
+
+    try {
+      const user = await createUserWithEmailAndPassword(auth, email, password);
+
+      const imageUrl = await upload(avatar.file);
+
+      await setDoc(doc(db, "users", user.user.uid), {
+        username,
+        email,
+        id: user.user.uid,
+        blocked: [],
+        avatar: imageUrl,
+      });
+
+      await setDoc(doc(db, "userChats", user.user.uid), {
+        chats: [],
+      });
+      toast.success("Account created successfully!");
+    } catch (error) {
+      toast.error(error.message);
+      console.log(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,7 +77,9 @@ const Login = () => {
         <form onSubmit={handleLogin}>
           <input type="text" placeholder="Email" className="email" />
           <input type="text" placeholder="Password" className="password" />
-          <button>Sign In</button>
+          <button disabled={loading}>
+            {loading ? "Loading..." : "Sign In"}
+          </button>
         </form>
       </div>
 
@@ -32,10 +87,25 @@ const Login = () => {
 
       <div className="item">
         <h2>Create an Account</h2>
-        <form onSubmit={handleLogin}>
-          <input type="text" placeholder="Name" className="name" />
-          <input type="text" placeholder="Email" className="email" />
-          <input type="text" placeholder="Password" className="password" />
+        <form onSubmit={handleRegister}>
+          <input
+            type="text"
+            placeholder="Userame"
+            className="username"
+            name="username"
+          />
+          <input
+            type="text"
+            placeholder="Email"
+            className="email"
+            name="email"
+          />
+          <input
+            type="text"
+            placeholder="Password"
+            className="password"
+            name="password"
+          />
           <label htmlFor="file">
             <img src={avatar.file ? avatar.url : "./avatar.png"} alt="" />
             Upload an Image
@@ -46,7 +116,9 @@ const Login = () => {
             style={{ display: "none" }}
             onChange={handleAvatar}
           />
-          <button>Sign up</button>
+          <button disabled={loading}>
+            {loading ? "Loading..." : "Sign up"}
+          </button>
         </form>
       </div>
     </div>
