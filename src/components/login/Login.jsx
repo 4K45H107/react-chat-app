@@ -25,11 +25,11 @@ const Login = () => {
     setLoading(true);
 
     const formData = new FormData(e.target);
-    const {email, password } = Object.fromEntries(formData);
+    const { email, password } = Object.fromEntries(formData);
 
     try {
+      // Sign in the user
       await signInWithEmailAndPassword(auth, email, password);
-
     } catch (error) {
       console.log(error);
       toast.error(error.message);
@@ -39,17 +39,22 @@ const Login = () => {
   };
 
   const handleRegister = async (e) => {
+    // Prevent the form from submitting
     e.preventDefault();
     setLoading(true);
 
+    // Get the form data
     const formData = new FormData(e.target);
     const { username, email, password } = Object.fromEntries(formData);
 
     try {
+      // Create a new user
       const user = await createUserWithEmailAndPassword(auth, email, password);
 
+      // Upload the avatar in firebase storage - using middleware upload.js
       const imageUrl = await upload(avatar.file);
 
+      // Create a new user in firestore user collection
       await setDoc(doc(db, "users", user.user.uid), {
         username,
         email,
@@ -58,6 +63,7 @@ const Login = () => {
         avatar: imageUrl,
       });
 
+      // crete a empty chat list for the user
       await setDoc(doc(db, "userChats", user.user.uid), {
         chats: [],
       });
@@ -75,8 +81,18 @@ const Login = () => {
       <div className="item">
         <h2>Welcome Back!</h2>
         <form onSubmit={handleLogin}>
-          <input type="text" placeholder="Email" className="email" />
-          <input type="text" placeholder="Password" className="password" />
+          <input
+            type="text"
+            placeholder="Email"
+            className="email"
+            name="email"
+          />
+          <input
+            type="text"
+            placeholder="Password"
+            className="password"
+            name="password"
+          />
           <button disabled={loading}>
             {loading ? "Loading..." : "Sign In"}
           </button>

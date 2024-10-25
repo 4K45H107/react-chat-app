@@ -1,7 +1,13 @@
 import React from "react";
 import "./Details.css";
+import { auth } from "../../lib/firebase";
 
 const Details = () => {
+  const handLogOut = () => {
+    // Sign out the user
+    auth.signOut();
+  };
+
   return (
     <div className="details">
       {/* ----- USER ----- */}
@@ -65,7 +71,9 @@ const Details = () => {
         {/* ----- BLOCK ----- */}
         <button className="btn-blk">Block User</button>
         {/* ----- LOGOUT ----- */}
-        <button className="btn-lgout">Log Out</button>
+        <button className="btn-lgout" onClick={handLogOut}>
+          Log Out
+        </button>
       </div>
     </div>
   );

@@ -20,6 +20,7 @@
       border-radius: 10px;
       border: none;
       outline: none;
+      background-color: rgb(17, 25, 40, 0.5);
     }
 
     button {

@@ -1,9 +1,42 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./ChatList.css";
 import AddUser from "./addUser/AddUser";
+import { useUserStore } from "../../../lib/userStore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { db } from "../../../lib/firebase";
 
 const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
+  const [chats, setChats] = useState([]);
+
+  const { currentUser } = useUserStore();
+
+  useEffect(() => {
+    // Get chats from firestore
+    // onSnapshot is a listener that listens for changes to the document
+    const unSub = onSnapshot(
+      doc(db, "userChats", currentUser.id),
+      async (res) => {
+        // Get user info for each chat
+        // getDoc is a function that gets a document from Firestore
+        const items = res.data().chats;
+        const promises = items.map(async (item) => {
+          const userDocRef = doc(db, "users", item.receiverId);
+          const userDocSnap = await getDoc(userDocRef);
+          const user = userDocSnap.data();
+          return { ...item, user };
+        });
+
+        const chatList = await Promise.all(promises);
+        // show the latest message first
+        setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
+      }
+    );
+
+    console.log(chats);
+
+    return () => unSub();
+  }, [currentUser.id]);
 
   return (
     <div className="chatList">
@@ -22,21 +55,16 @@ const ChatList = () => {
       </div>
 
       {/* ------ ITEMS ------ */}
-      <div className="item">
-        <img src="./avatar.png" alt="" />
-        <div className="texts">
-          <span>Safina Promity</span>
-          <p>Hello</p>
+      {chats.map((chat) => (
+        <div className="item" key={chat.chatId}>
+          <img src={chat.user.avatar || "./avatar.png"} alt="" />
+          <div className="texts">
+            <span>{chat.user.username}</span>
+            <p>{chat.lastMessage}</p>
+          </div>
         </div>
-      </div>
+      ))}
 
-      <div className="item">
-        <img src="./avatar.png" alt="" />
-        <div className="texts">
-          <span>Safina Promity</span>
-          <p>Hello</p>
-        </div>
-      </div>
       {addMode && <AddUser />}
     </div>
   );

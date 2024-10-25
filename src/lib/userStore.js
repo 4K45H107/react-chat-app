@@ -10,6 +10,7 @@ export const useUserStore = create((set) => ({
     if (!uid) return set({ currentUser: null, isLoading: false });
 
     try {
+      // Get the user document from Firestore
       const docRef = doc(db, "users", uid);
       const docSnap = await getDoc(docRef);
 
