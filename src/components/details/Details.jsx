@@ -3,9 +3,9 @@ import "./Details.css";
 import { auth } from "../../lib/firebase";
 
 const Details = () => {
-  const handLogOut = () => {
+  const handLogOut = async () => {
     // Sign out the user
-    auth.signOut();
+    await auth.signOut();
   };
 
   return (

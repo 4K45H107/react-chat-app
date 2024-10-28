@@ -60,7 +60,7 @@ const Login = () => {
         email,
         id: user.user.uid,
         blocked: [],
-        avatar: imageUrl,
+        avatar: imageUrl || "",
       });
 
       // crete a empty chat list for the user

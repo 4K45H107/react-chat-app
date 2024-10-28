@@ -7,6 +7,7 @@ export const useUserStore = create((set) => ({
   isLoading: true,
 
   fetchUserInfo: async (uid) => {
+    console.log("i am fetch")
     if (!uid) return set({ currentUser: null, isLoading: false });
 
     try {

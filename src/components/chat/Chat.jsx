@@ -2,15 +2,23 @@ import React, { useState, useRef, useEffect } from "react";
 import "./Chat.css";
 import EmojiPicker from "emoji-picker-react";
 import { db } from "../../lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import {
+  arrayUnion,
+  doc,
+  getDoc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
 import { useChatStore } from "../../lib/chatStore";
+import { useUserStore } from "../../lib/userStore";
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
 
-  const { chatId } = useChatStore();
+  const { chatId, user } = useChatStore();
+  const { currentUser } = useUserStore();
 
   const endRef = useRef(null);
 
@@ -26,12 +34,58 @@ const Chat = () => {
     return () => unsub();
   }, [chatId]);
 
-  console.log(chat);
-
   const handleEmoji = (e) => {
     let newText = text + e.emoji;
     setText(newText);
     setOpenEmoji(false);
+  };
+
+  const handleSend = async () => {
+    // if text is empty, return
+    if (text === "") return;
+
+    try {
+      // update the chat with the new message
+      await updateDoc(doc(db, "chats", chatId), {
+        messages: arrayUnion({
+          senderId: currentUser.id,
+          text,
+          createdAt: new Date(),
+        }),
+      });
+
+      // update the userChats in both ends
+      const userIDs = [currentUser.id, user.id];
+
+      userIDs.forEach(async (id) => {
+        // update the userChats with the new message
+        const userChatsRef = doc(db, "userChats", currentUser.id);
+        const userChatSnapShot = await getDoc(userChatsRef);
+
+        if (userChatSnapShot.exists()) {
+          const userChatsData = userChatSnapShot.data();
+
+          // find the chat in the userChats
+          const chatIndex = userChatsData.chats.findIndex(
+            (c) => c.chatId === chatId
+          );
+
+          // update the chat last message, isSeen, updatedAt
+          userChatsData.chats[chatIndex].lastMessage = text;
+          userChatsData.chats[chatIndex].isSeen =
+            id === currentUser.id ? true : false;
+          userChatsData.chats[chatIndex].updatedAt = Date.now();
+
+          await updateDoc(userChatsRef, {
+            chats: userChatsData.chats,
+          });
+        }
+      });
+
+      console.log(chat);
+    } catch (error) {
+      console.log(error.message);
+    }
   };
 
   return (
@@ -56,100 +110,35 @@ const Chat = () => {
 
       {/* ------ CENTER ------ */}
       <div className="center">
-        {/* ----- OWN MESSAGE ----- */}
-        <div className="message own">
-          <div className="texts">
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-
         {/* ----- OTHER MESSAGE ----- */}
-        <div className="message">
-          <img src="./avatar.png" alt="" />
-          <div className="texts">
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-
-            <span>1 min ago</span>
+        {/* ----- OWN MESSAGE ----- */}
+        {chat?.messages?.map((message) => (
+          <div
+            className={`message ${
+              message.senderId === currentUser.id && "own"
+            }`}
+            key={message.createdAt}
+          >
+            <div className="texts">
+              <p>{message.text}</p>
+              <span>1 min ago</span>
+            </div>
           </div>
-        </div>
-
-        <div className="message own">
-          <div className="texts">
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-
-        <div className="message">
-          <img src="./avatar.png" alt="" />
-          <div className="texts">
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-
-        <div className="message own">
-          <div className="texts">
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-
-        <div className="message">
-          <img src="./avatar.png" alt="" />
-          <div className="texts">
-            <img src="https://picsum.photos/200/300" alt="" />
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-
-        <div className="message own">
-          <div className="texts">
-            <img src="https://picsum.photos/200/300" alt="" />
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Numquam
-              facere in illo recusandae deleniti magnam ipsam. Cum illum animi,
-              atque omnis, enim iusto facere perspiciatis ratione saepe numquam
-              sed blanditiis! Minus est ut at fugiat.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-        <div ref={endRef}></div>
+        ))}
+        {/* {chat?.messages?.map((message) => {
+          <div className="message own" key={message?.createdAt}>
+            <img src="./avatar.png" alt="" />
+            <div className="texts">
+              {message?.img && (
+                <img src="https://picsum.photos/200/300" alt="" />
+              )}
+              <p>{message.text}</p>
+              <span>1 min ago</span>
+            </div>
+          </div>;
+        })} */}
       </div>
-
+      <div ref={endRef}></div>
       {/* ------ BOTTOM ------ */}
       <div className="bottom">
         <div className="icons">
@@ -173,7 +162,9 @@ const Chat = () => {
             <EmojiPicker open={openEmoji} onEmojiClick={handleEmoji} />
           </div>
         </div>
-        <button className="sendButton">Send</button>
+        <button className="sendButton" onClick={handleSend}>
+          Send
+        </button>
       </div>
     </div>
   );
