@@ -1,5 +1,5 @@
 import React from "react";
-import "./Details.css";
+import "./details.css";
 import { auth } from "../../lib/firebase";
 
 const Details = () => {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import "./Chat.css";
+import "./chat.css";
 import EmojiPicker from "emoji-picker-react";
 import { db } from "../../lib/firebase";
 import {
