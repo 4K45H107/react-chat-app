@@ -2,11 +2,15 @@ import { create } from "zustand";
 import { useUserStore } from "./userStore";
 import { normalizeUser } from "./normalizeUser";
 
-export const useChatStore = create((set) => ({
+const emptyChatState = {
   chatId: null,
   user: null,
   isCurrentUserBlocked: false,
   isReceiverBlocked: false,
+};
+
+export const useChatStore = create((set) => ({
+  ...emptyChatState,
 
   changeChat: (chatId, user) => {
     const currentUser = normalizeUser(useUserStore.getState().currentUser);
@@ -49,13 +53,8 @@ export const useChatStore = create((set) => ({
     }));
   },
 
-  // Clear active chat when the session ends so the next login starts fresh
-  resetChat: () => {
-    set({
-      chatId: null,
-      user: null,
-      isCurrentUserBlocked: false,
-      isReceiverBlocked: false,
-    });
-  },
+  // Leave the active chat (mobile back) or clear on logout
+  closeChat: () => set(emptyChatState),
+
+  resetChat: () => set(emptyChatState),
 }));

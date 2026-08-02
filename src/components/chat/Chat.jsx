@@ -18,7 +18,7 @@ const Chat = () => {
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
 
-  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } =
+  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked, closeChat } =
     useChatStore();
   const { currentUser } = useUserStore();
 
@@ -131,6 +131,14 @@ const Chat = () => {
     <div className="chat">
       {/* ------ TOP ------ */}
       <div className="top">
+        <button
+          type="button"
+          className="backButton"
+          onClick={closeChat}
+          aria-label="Back to chat list"
+        >
+          ←
+        </button>
         {/* Active chat partner — populated from chatStore when a chat is selected */}
         <div className="user">
           <img
