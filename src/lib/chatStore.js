@@ -44,4 +44,14 @@ export const useChatStore = create((set) => ({
       isReceiverBlocked: !state.isReceiverBlocked,
     }));
   },
+
+  // Clear active chat when the session ends so the next login starts fresh
+  resetChat: () => {
+    set({
+      chatId: null,
+      user: null,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+    });
+  },
 }));
