@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./chat.css";
 import EmojiPicker from "emoji-picker-react";
+import { toast } from "react-toastify";
 import { db } from "../../lib/firebase";
 import {
   arrayUnion,
@@ -107,6 +108,7 @@ const Chat = () => {
         error.message,
         error
       );
+      toast.error("Failed to send message. Please try again.");
     }
   };
 
