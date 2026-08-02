@@ -22,9 +22,11 @@ const Chat = () => {
 
   const endRef = useRef(null);
 
+  // Scroll to the latest message whenever the message list updates
+  // (new incoming message, own send via snapshot, or opening a chat)
   useEffect(() => {
-    endRef.current.scrollIntoView({ behavior: "smooth" });
-  }, []);
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat?.messages]);
 
   useEffect(() => {
     const unsub = onSnapshot(
