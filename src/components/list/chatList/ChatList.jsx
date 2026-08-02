@@ -5,6 +5,7 @@ import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
+import { normalizeUser } from "../../../lib/normalizeUser";
 
 const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
@@ -20,14 +21,35 @@ const ChatList = () => {
       doc(db, "userChats", currentUser.id),
       async (res) => {
         const items = res.data()?.chats ?? [];
+
         const promises = items.map(async (item) => {
-          const userDocRef = doc(db, "users", item.receiverId);
-          const userDocSnap = await getDoc(userDocRef);
-          const user = userDocSnap.data();
-          return { ...item, user };
+          try {
+            const userDocSnap = await getDoc(
+              doc(db, "users", item.receiverId)
+            );
+
+            if (!userDocSnap.exists()) {
+              console.warn(
+                "[ChatList] Skipping chat — user profile missing:",
+                item.receiverId
+              );
+              return null;
+            }
+
+            return { ...item, user: normalizeUser(userDocSnap.data()) };
+          } catch (error) {
+            console.error(
+              "[ChatList] Failed to load user profile:",
+              item.receiverId,
+              error.code,
+              error.message,
+              error
+            );
+            return null;
+          }
         });
 
-        const chatList = await Promise.all(promises);
+        const chatList = (await Promise.all(promises)).filter(Boolean);
         setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
       },
       (error) => {
@@ -43,7 +65,8 @@ const ChatList = () => {
     return () => unSub();
   }, [currentUser.id]);
 
-  const handleSearch = async (chat) => {
+  const handleSearch = (chat) => {
+    if (!chat.user) return;
     changeChat(chat.chatId, chat.user);
   };
 

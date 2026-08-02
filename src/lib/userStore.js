@@ -1,6 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { create } from "zustand";
 import { db } from "./firebase";
+import { normalizeUser } from "./normalizeUser";
 
 export const useUserStore = create((set) => ({
   currentUser: null,
@@ -18,7 +19,7 @@ export const useUserStore = create((set) => ({
 
       if (docSnap.exists()) {
         console.info("[userStore] User profile loaded:", uid);
-        set({ currentUser: docSnap.data(), isLoading: false });
+        set({ currentUser: normalizeUser(docSnap.data()), isLoading: false });
       } else {
         console.warn(
           "[userStore] Auth user exists but Firestore doc missing:",

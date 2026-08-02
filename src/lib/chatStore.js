@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useUserStore } from "./userStore";
+import { normalizeUser } from "./normalizeUser";
 
 export const useChatStore = create((set) => ({
   chatId: null,
@@ -8,34 +9,37 @@ export const useChatStore = create((set) => ({
   isReceiverBlocked: false,
 
   changeChat: (chatId, user) => {
-    const currentUser = useUserStore.getState().currentUser;
+    const currentUser = normalizeUser(useUserStore.getState().currentUser);
+    const partner = normalizeUser(user);
+    if (!partner || !currentUser) return;
 
-    // CHECK IF THE CURRENT USER IS BLOCKED
-    if (user.blocked.includes(currentUser.id)) {
+    // blocked is always an array after normalizeUser — safe to call .includes()
+    if (partner.blocked.includes(currentUser.id)) {
       set({
         chatId,
-        user: null,
+        user: partner,
         isCurrentUserBlocked: true,
         isReceiverBlocked: false,
       });
+      return;
     }
 
-    // CHECK IF THE RECEIVER IS BLOCKED
-    else if (currentUser.blocked.includes(user.id)) {
+    if (currentUser.blocked.includes(partner.id)) {
       set({
         chatId,
-        user,
+        user: partner,
         isCurrentUserBlocked: false,
         isReceiverBlocked: true,
       });
-    } else {
-      return set({
-        chatId,
-        user,
-        isCurrentUserBlocked: false,
-        isReceiverBlocked: false,
-      });
+      return;
     }
+
+    set({
+      chatId,
+      user: partner,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+    });
   },
 
   changeBlock: () => {
@@ -43,5 +47,15 @@ export const useChatStore = create((set) => ({
       ...state,
       isReceiverBlocked: !state.isReceiverBlocked,
     }));
+  },
+
+  // Clear active chat when the session ends so the next login starts fresh
+  resetChat: () => {
+    set({
+      chatId: null,
+      user: null,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+    });
   },
 }));

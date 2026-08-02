@@ -17,8 +17,11 @@ const Chat = () => {
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
 
-  const { chatId, user } = useChatStore();
+  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } =
+    useChatStore();
   const { currentUser } = useUserStore();
+
+  const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
 
   const endRef = useRef(null);
 
@@ -54,7 +57,7 @@ const Chat = () => {
   };
 
   const handleSend = async () => {
-    if (text === "") return;
+    if (text === "" || !user || isChatBlocked) return;
 
     try {
       // 1. Append the new message to the shared chat document
@@ -80,21 +83,18 @@ const Chat = () => {
         if (!userChatsSnapshot.exists()) continue;
 
         const userChatsData = userChatsSnapshot.data();
-        const chatIndex = userChatsData.chats.findIndex(
-          (c) => c.chatId === chatId
-        );
+        const chats = userChatsData.chats ?? [];
+        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
 
-        // Skip if this user's chat list doesn't contain this conversation
+        // Skip if this user's chat list is missing or has no entry for this chat
         if (chatIndex === -1) continue;
 
-        // Sender marks their own chat as seen; receiver gets isSeen: false
-        userChatsData.chats[chatIndex].lastMessage = text;
-        userChatsData.chats[chatIndex].isSeen =
-          participantId === currentUser.id;
-        userChatsData.chats[chatIndex].updatedAt = Date.now();
+        chats[chatIndex].lastMessage = text;
+        chats[chatIndex].isSeen = participantId === currentUser.id;
+        chats[chatIndex].updatedAt = Date.now();
 
         await updateDoc(userChatsRef, {
-          chats: userChatsData.chats,
+          chats,
         });
       }
 
@@ -135,8 +135,13 @@ const Chat = () => {
 
       {/* ------ CENTER ------ */}
       <div className="center">
-        {/* ----- OTHER MESSAGE ----- */}
-        {/* ----- OWN MESSAGE ----- */}
+        {isChatBlocked && (
+          <p className="blockedNotice">
+            {isCurrentUserBlocked
+              ? "You can't message this user — you've been blocked."
+              : "You blocked this user."}
+          </p>
+        )}
         {chat?.messages?.map((message) => (
           <div
             className={`message ${
@@ -164,8 +169,8 @@ const Chat = () => {
         })} */}
       </div>
       <div ref={endRef}></div>
-      {/* ------ BOTTOM ------ */}
-      <div className="bottom">
+      {/* Disable composer when either party has blocked the other */}
+      <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
         <div className="icons">
           <img src="./img.png" alt="" />
           <img src="./camera.png" alt="" />
@@ -174,20 +179,29 @@ const Chat = () => {
         <input
           type="text"
           value={text || ""}
-          placeholder="Type a message..."
+          placeholder={
+            isChatBlocked ? "Messaging unavailable" : "Type a message..."
+          }
           onChange={(e) => setText(e.target.value)}
+          disabled={isChatBlocked}
         />
         <div className="emoji">
           <img
             src="./emoji.png"
             alt=""
-            onClick={() => setOpenEmoji((prev) => !prev)}
+            onClick={() => !isChatBlocked && setOpenEmoji((prev) => !prev)}
           />
           <div className="picker">
-            <EmojiPicker open={openEmoji} onEmojiClick={handleEmoji} />
+            {openEmoji && !isChatBlocked && (
+              <EmojiPicker onEmojiClick={handleEmoji} />
+            )}
           </div>
         </div>
-        <button className="sendButton" onClick={handleSend}>
+        <button
+          className="sendButton"
+          onClick={handleSend}
+          disabled={isChatBlocked}
+        >
           Send
         </button>
       </div>

@@ -65,6 +65,16 @@
     flex-direction: column;
     gap: 20px;
 
+    .blockedNotice {
+      align-self: center;
+      padding: 12px 20px;
+      border-radius: 10px;
+      background-color: rgba(167, 39, 39, 0.35);
+      color: #ffb4b4;
+      font-size: 14px;
+      text-align: center;
+    }
+
     .message {
       max-width: 78%;
       display: flex;
@@ -168,6 +178,16 @@
       outline: none;
       color: white;
       cursor: pointer;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    &.disabled input {
+      cursor: not-allowed;
+      opacity: 0.6;
     }
   }
 }
