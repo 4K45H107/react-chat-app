@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import "./Chatlist.css";
+import "./ChatList.css";
+import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
 import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
+import { normalizeUser } from "../../../lib/normalizeUser";
 
 const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
@@ -19,16 +21,47 @@ const ChatList = () => {
     const unSub = onSnapshot(
       doc(db, "userChats", currentUser.id),
       async (res) => {
-        const items = res.data()?.chats ?? [];
-        const promises = items.map(async (item) => {
-          const userDocRef = doc(db, "users", item.receiverId);
-          const userDocSnap = await getDoc(userDocRef);
-          const user = userDocSnap.data();
-          return { ...item, user };
-        });
+        try {
+          const items = res.data()?.chats ?? [];
 
-        const chatList = await Promise.all(promises);
-        setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
+          const promises = items.map(async (item) => {
+            try {
+              const userDocSnap = await getDoc(
+                doc(db, "users", item.receiverId)
+              );
+
+              if (!userDocSnap.exists()) {
+                console.warn(
+                  "[ChatList] Skipping chat — user profile missing:",
+                  item.receiverId
+                );
+                return null;
+              }
+
+              return { ...item, user: normalizeUser(userDocSnap.data()) };
+            } catch (error) {
+              console.error(
+                "[ChatList] Failed to load user profile:",
+                item.receiverId,
+                error.code,
+                error.message,
+                error
+              );
+              return null;
+            }
+          });
+
+          const chatList = (await Promise.all(promises)).filter(Boolean);
+          setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
+        } catch (error) {
+          console.error(
+            "[ChatList] Failed to process chat list:",
+            error.code,
+            error.message,
+            error
+          );
+          toast.error("Failed to load chat list. Please try again.");
+        }
       },
       (error) => {
         console.error(
@@ -37,13 +70,15 @@ const ChatList = () => {
           error.message,
           error
         );
+        toast.error("Failed to load chat list. Please try again.");
       }
     );
 
     return () => unSub();
   }, [currentUser.id]);
 
-  const handleSearch = async (chat) => {
+  const handleSelectChat = (chat) => {
+    if (!chat.user) return;
     changeChat(chat.chatId, chat.user);
   };
 
@@ -68,7 +103,7 @@ const ChatList = () => {
         <div
           className="item"
           key={chat.chatId}
-          onClick={() => handleSearch(chat)}
+          onClick={() => handleSelectChat(chat)}
         >
           <img src={chat.user.avatar || "./avatar.png"} alt="" />
           <div className="texts">

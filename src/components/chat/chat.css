@@ -14,6 +14,20 @@
     padding: 10px;
     border-bottom: 1px solid #dddddd35;
 
+    .backButton {
+      display: none;
+      background: rgba(17, 25, 40, 0.5);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 20px;
+      line-height: 1;
+      padding: 8px 12px;
+      cursor: pointer;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+
     .user {
       display: flex;
       align-items: center;
@@ -64,6 +78,16 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+
+    .blockedNotice {
+      align-self: center;
+      padding: 12px 20px;
+      border-radius: 10px;
+      background-color: rgba(167, 39, 39, 0.35);
+      color: #ffb4b4;
+      font-size: 14px;
+      text-align: center;
+    }
 
     .message {
       max-width: 78%;
@@ -157,6 +181,8 @@
         position: absolute;
         bottom: 50px;
         left: 0;
+        z-index: 10;
+        color: initial;
       }
     }
 
@@ -168,6 +194,77 @@
       outline: none;
       color: white;
       cursor: pointer;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    &.disabled input {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+}
+
+@media (max-width: 1024px) {
+  .chat {
+    flex: 1.5;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat {
+    flex: 1;
+    min-width: 0;
+    border-left: none;
+
+    .top {
+      gap: 8px;
+
+      .backButton {
+        display: block;
+      }
+
+      .user {
+        gap: 12px;
+
+        img {
+          width: 44px;
+          height: 44px;
+          margin-left: 0;
+        }
+
+        .texts span {
+          font-size: 16px;
+        }
+      }
+
+      .icons {
+        gap: 12px;
+      }
+    }
+
+    .center {
+      padding: 12px;
+    }
+
+    .bottom {
+      padding: 12px;
+      gap: 10px;
+
+      .icons {
+        display: none;
+      }
+
+      input {
+        font-size: 14px;
+      }
+
+      .sendButton {
+        padding: 10px 14px;
+      }
     }
   }
 }

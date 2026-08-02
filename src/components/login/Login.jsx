@@ -16,8 +16,11 @@ const Login = () => {
   const handleAvatar = (e) => {
     if (!e.target.files.length) return;
 
-    let file = e.target.files[0];
-    setAvatar({ file, url: URL.createObjectURL(file) });
+    const file = e.target.files[0];
+    setAvatar((prev) => {
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
   };
 
   const handleLogin = async (e) => {
@@ -68,7 +71,7 @@ const Login = () => {
         avatar: imageUrl || "",
       });
 
-      // crete a empty chat list for the user
+      // Create an empty chat list for the user
       await setDoc(doc(db, "userChats", user.user.uid), {
         chats: [],
       });
@@ -98,7 +101,7 @@ const Login = () => {
             name="email"
           />
           <input
-            type="text"
+            type="password"
             placeholder="Password"
             className="password"
             name="password"
@@ -109,14 +112,14 @@ const Login = () => {
         </form>
       </div>
 
-      <div className="seperator"></div>
+      <div className="separator"></div>
 
       <div className="item">
         <h2>Create an Account</h2>
         <form onSubmit={handleRegister}>
           <input
             type="text"
-            placeholder="Userame"
+            placeholder="Username"
             className="username"
             name="username"
           />
@@ -127,7 +130,7 @@ const Login = () => {
             name="email"
           />
           <input
-            type="text"
+            type="password"
             placeholder="Password"
             className="password"
             name="password"

@@ -12,11 +12,7 @@ const upload = async (file) => {
   return new Promise((resolve, reject) => {
     uploadTask.on(
       "state_changed",
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log("Upload is " + progress + "% done");
-      },
+      () => {},
       (error) => {
         console.error(
           "[upload] Avatar upload failed:",
@@ -27,9 +23,9 @@ const upload = async (file) => {
         reject("Something went wrong! " + error.message);
       },
       () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          resolve(downloadURL);
-        });
+        getDownloadURL(uploadTask.snapshot.ref)
+          .then(resolve)
+          .catch(reject);
       }
     );
   });

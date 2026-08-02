@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import "./Adduser.css";
+import "./AddUser.css";
+import { toast } from "react-toastify";
 import {
   arrayUnion,
   collection,
@@ -18,7 +19,7 @@ const AddUser = () => {
   const [user, setUser] = useState(null);
   const { currentUser } = useUserStore();
 
-  const handleSearch = async (e) => {
+  const handleUserSearch = async (e) => {
     e.preventDefault();
 
     const formData = new FormData(e.target);
@@ -35,6 +36,7 @@ const AddUser = () => {
         setUser(querySnapShot.docs[0].data());
       } else {
         console.warn("[AddUser] No user found for username:", username);
+        toast.warn(`No user found with username "${username}"`);
       }
     } catch (error) {
       console.error(
@@ -43,10 +45,14 @@ const AddUser = () => {
         error.message,
         error
       );
+      toast.error("User search failed. Please try again.");
     }
   };
 
   const handleAdd = async () => {
+    // Guard: "+" must not run until a user has been found via search
+    if (!user?.id) return;
+
     const chatRef = collection(db, "chats");
     const userChatRef = collection(db, "userChats");
 
@@ -79,9 +85,8 @@ const AddUser = () => {
         }),
       });
 
-
-
-
+      toast.success("Chat created!");
+      setUser(null);
     } catch (error) {
       console.error(
         "[AddUser] Failed to create chat:",
@@ -89,25 +94,26 @@ const AddUser = () => {
         error.message,
         error
       );
+      toast.error("Failed to create chat. Please try again.");
     }
-
-    setUser(null);
   };
 
   return (
     <div className="addUser">
-      <form onSubmit={handleSearch}>
+      <form onSubmit={handleUserSearch}>
         <input type="text" placeholder="Username" name="username" />
         <button>Search</button>
       </form>
 
-      <div className="user">
-        <div className="details">
-          <img src={user?.avatar || "./avatar.png"} alt="" />
-          <span>{user?.username}</span>
+      {user && (
+        <div className="user">
+          <div className="details">
+            <img src={user.avatar || "./avatar.png"} alt="" />
+            <span>{user.username}</span>
+          </div>
+          <button onClick={handleAdd}>+</button>
         </div>
-        <button onClick={handleAdd}>+</button>
-      </div>
+      )}
     </div>
   );
 };

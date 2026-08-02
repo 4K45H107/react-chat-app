@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./chat.css";
-import EmojiPicker from "emoji-picker-react";
+import EmojiPicker, { Theme } from "emoji-picker-react";
+import { toast } from "react-toastify";
 import { db } from "../../lib/firebase";
 import {
   arrayUnion,
@@ -17,14 +18,20 @@ const Chat = () => {
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
 
-  const { chatId, user } = useChatStore();
+  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked, closeChat } =
+    useChatStore();
   const { currentUser } = useUserStore();
 
-  const endRef = useRef(null);
+  const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
 
+  const endRef = useRef(null);
+  const emojiRef = useRef(null);
+
+  // Scroll to the latest message whenever the message list updates
+  // (new incoming message, own send via snapshot, or opening a chat)
   useEffect(() => {
-    endRef.current.scrollIntoView({ behavior: "smooth" });
-  }, []);
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat?.messages]);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -45,6 +52,20 @@ const Chat = () => {
     return () => unsub();
   }, [chatId]);
 
+  // Close emoji picker when clicking outside the picker/toggle
+  useEffect(() => {
+    if (!openEmoji) return;
+
+    const handleClickOutside = (event) => {
+      if (emojiRef.current && !emojiRef.current.contains(event.target)) {
+        setOpenEmoji(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openEmoji]);
+
   const handleEmoji = (e) => {
     let newText = text + e.emoji;
     setText(newText);
@@ -52,11 +73,10 @@ const Chat = () => {
   };
 
   const handleSend = async () => {
-    // if text is empty, return
-    if (text === "") return;
+    if (text === "" || !user || isChatBlocked) return;
 
     try {
-      // update the chat with the new message
+      // 1. Append the new message to the shared chat document
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
           senderId: currentUser.id,
@@ -65,35 +85,37 @@ const Chat = () => {
         }),
       });
 
-      // update the userChats in both ends
-      const userIDs = [currentUser.id, user.id];
+      // 2. Update each participant's userChats sidebar entry.
+      //    Both the sender and receiver need their own userChats doc updated
+      //    so lastMessage, isSeen, and updatedAt stay in sync on both sides.
+      const participantIds = [currentUser.id, user.id];
 
-      userIDs.forEach(async (id) => {
-        // update the userChats with the new message
-        const userChatsRef = doc(db, "userChats", currentUser.id);
-        const userChatSnapShot = await getDoc(userChatsRef);
+      for (const participantId of participantIds) {
+        // Each user has their own userChats/{uid} document — must use
+        // participantId here, NOT currentUser.id, or the receiver never updates.
+        const userChatsRef = doc(db, "userChats", participantId);
+        const userChatsSnapshot = await getDoc(userChatsRef);
 
-        if (userChatSnapShot.exists()) {
-          const userChatsData = userChatSnapShot.data();
+        if (!userChatsSnapshot.exists()) continue;
 
-          // find the chat in the userChats
-          const chatIndex = userChatsData.chats.findIndex(
-            (c) => c.chatId === chatId
-          );
+        const userChatsData = userChatsSnapshot.data();
+        const chats = userChatsData.chats ?? [];
+        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
 
-          // update the chat last message, isSeen, updatedAt
-          userChatsData.chats[chatIndex].lastMessage = text;
-          userChatsData.chats[chatIndex].isSeen =
-            id === currentUser.id ? true : false;
-          userChatsData.chats[chatIndex].updatedAt = Date.now();
+        // Skip if this user's chat list is missing or has no entry for this chat
+        if (chatIndex === -1) continue;
 
-          await updateDoc(userChatsRef, {
-            chats: userChatsData.chats,
-          });
-        }
-      });
+        chats[chatIndex].lastMessage = text;
+        chats[chatIndex].isSeen = participantId === currentUser.id;
+        chats[chatIndex].updatedAt = Date.now();
 
-      console.log(chat);
+        await updateDoc(userChatsRef, {
+          chats,
+        });
+      }
+
+      // Clear input only after all writes succeed so failed sends keep the draft
+      setText("");
     } catch (error) {
       console.error(
         "[Chat] Failed to send message:",
@@ -101,6 +123,7 @@ const Chat = () => {
         error.message,
         error
       );
+      toast.error("Failed to send message. Please try again.");
     }
   };
 
@@ -108,12 +131,23 @@ const Chat = () => {
     <div className="chat">
       {/* ------ TOP ------ */}
       <div className="top">
-        {/* ------ USER INFO ------ */}
+        <button
+          type="button"
+          className="backButton"
+          onClick={closeChat}
+          aria-label="Back to chat list"
+        >
+          ←
+        </button>
+        {/* Active chat partner — populated from chatStore when a chat is selected */}
         <div className="user">
-          <img src="./avatar.png" alt="" />
+          <img
+            src={user?.avatar || "./avatar.png"}
+            alt={user?.username ?? "Chat partner"}
+          />
           <div className="texts">
-            <span>Safina Promity</span>
-            <p>I am safina</p>
+            <span>{user?.username ?? "Unknown user"}</span>
+            <p>{user?.email ?? ""}</p>
           </div>
         </div>
         {/* ---- ICONS ---- */}
@@ -126,8 +160,13 @@ const Chat = () => {
 
       {/* ------ CENTER ------ */}
       <div className="center">
-        {/* ----- OTHER MESSAGE ----- */}
-        {/* ----- OWN MESSAGE ----- */}
+        {isChatBlocked && (
+          <p className="blockedNotice">
+            {isCurrentUserBlocked
+              ? "You can't message this user — you've been blocked."
+              : "You blocked this user."}
+          </p>
+        )}
         {chat?.messages?.map((message) => (
           <div
             className={`message ${
@@ -141,22 +180,10 @@ const Chat = () => {
             </div>
           </div>
         ))}
-        {/* {chat?.messages?.map((message) => {
-          <div className="message own" key={message?.createdAt}>
-            <img src="./avatar.png" alt="" />
-            <div className="texts">
-              {message?.img && (
-                <img src="https://picsum.photos/200/300" alt="" />
-              )}
-              <p>{message.text}</p>
-              <span>1 min ago</span>
-            </div>
-          </div>;
-        })} */}
       </div>
       <div ref={endRef}></div>
-      {/* ------ BOTTOM ------ */}
-      <div className="bottom">
+      {/* Disable composer when either party has blocked the other */}
+      <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
         <div className="icons">
           <img src="./img.png" alt="" />
           <img src="./camera.png" alt="" />
@@ -165,20 +192,29 @@ const Chat = () => {
         <input
           type="text"
           value={text || ""}
-          placeholder="Type a message..."
+          placeholder={
+            isChatBlocked ? "Messaging unavailable" : "Type a message..."
+          }
           onChange={(e) => setText(e.target.value)}
+          disabled={isChatBlocked}
         />
-        <div className="emoji">
+        <div className="emoji" ref={emojiRef}>
           <img
             src="./emoji.png"
-            alt=""
-            onClick={() => setOpenEmoji((prev) => !prev)}
+            alt="Open emoji picker"
+            onClick={() => !isChatBlocked && setOpenEmoji((prev) => !prev)}
           />
-          <div className="picker">
-            <EmojiPicker open={openEmoji} onEmojiClick={handleEmoji} />
-          </div>
+          {openEmoji && !isChatBlocked && (
+            <div className="picker">
+              <EmojiPicker theme={Theme.DARK} onEmojiClick={handleEmoji} />
+            </div>
+          )}
         </div>
-        <button className="sendButton" onClick={handleSend}>
+        <button
+          className="sendButton"
+          onClick={handleSend}
+          disabled={isChatBlocked}
+        >
           Send
         </button>
       </div>

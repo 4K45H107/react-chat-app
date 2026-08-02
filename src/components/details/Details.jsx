@@ -1,20 +1,25 @@
 import React from "react";
 import "./details.css";
 import { auth } from "../../lib/firebase";
+import { useChatStore } from "../../lib/chatStore";
 
 const Details = () => {
-  const handLogOut = async () => {
-    // Sign out the user
+  const { user } = useChatStore();
+
+  const handleLogout = async () => {
     await auth.signOut();
   };
 
   return (
     <div className="details">
-      {/* ----- USER ----- */}
+      {/* Active chat partner — same user object as the Chat header */}
       <div className="user">
-        <img src="./avatar.png" alt="" />
-        <h2>Safina Promity</h2>
-        <p>Lorem ipsum dolor</p>
+        <img
+          src={user?.avatar || "./avatar.png"}
+          alt={user?.username ?? "Chat partner"}
+        />
+        <h2>{user?.username ?? "Unknown user"}</h2>
+        <p>{user?.email ?? ""}</p>
       </div>
       {/* ----- INFO ----- */}
       <div className="info">
@@ -41,22 +46,9 @@ const Details = () => {
             <img src="./arrowDown.png" alt="" />
           </div>
 
-          {/* ----- PHOTOS ----- */}
+          {/* Shared photos not implemented yet — placeholder removed */}
           <div className="photos">
-            <div className="photoItem">
-              <div className="photoDetail">
-                <img src="https://picsum.photos/200/300" alt="" />
-                <span>photo_cse_fest</span>
-                <img src="./download.png" alt="" className="download" />
-              </div>
-            </div>
-            <div className="photoItem">
-              <div className="photoDetail">
-                <img src="https://picsum.photos/200/300" alt="" />
-                <span>photo_cse_fest</span>
-                <img src="./download.png" alt="" className="download" />
-              </div>
-            </div>
+            <p className="emptyHint">No shared photos yet</p>
           </div>
         </div>
 
@@ -71,7 +63,7 @@ const Details = () => {
         {/* ----- BLOCK ----- */}
         <button className="btn-blk">Block User</button>
         {/* ----- LOGOUT ----- */}
-        <button className="btn-lgout" onClick={handLogOut}>
+        <button className="btn-lgout" onClick={handleLogout}>
           Log Out
         </button>
       </div>

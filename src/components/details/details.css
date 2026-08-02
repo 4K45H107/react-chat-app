@@ -52,6 +52,12 @@
         margin-top: 10px;
         gap: 20px;
 
+        .emptyHint {
+          font-size: 14px;
+          color: lightgray;
+          font-weight: 300;
+        }
+
         .photoItem {
           .photoDetail {
             display: flex;
@@ -111,5 +117,11 @@
         background-color: #1b4cb6;
       }
     }
+  }
+}
+
+@media (max-width: 1024px) {
+  .details {
+    display: none;
   }
 }

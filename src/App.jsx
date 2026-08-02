@@ -16,9 +16,11 @@ const App = () => {
 
   // Fetch the user info when the app loads
   useEffect(() => {
-    // Listen for auth state changes
-    console.log("I am useEffect");
     const unSub = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // Drop stale chatId/user from the previous session
+        useChatStore.getState().resetChat();
+      }
       fetchUserInfo(user?.uid);
     });
 
@@ -29,7 +31,7 @@ const App = () => {
   if (isLoading) return <div className="loading">Loading...</div>;
 
   return (
-    <div className="container">
+    <div className={`container${chatId ? " chat-open" : ""}`}>
       {!currentUser ? (
         <Login />
       ) : (
