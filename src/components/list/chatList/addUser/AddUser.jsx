@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./Adduser.css";
+import { toast } from "react-toastify";
 import {
   arrayUnion,
   collection,
@@ -35,6 +36,7 @@ const AddUser = () => {
         setUser(querySnapShot.docs[0].data());
       } else {
         console.warn("[AddUser] No user found for username:", username);
+        toast.warn(`No user found with username "${username}"`);
       }
     } catch (error) {
       console.error(
@@ -43,6 +45,7 @@ const AddUser = () => {
         error.message,
         error
       );
+      toast.error("User search failed. Please try again.");
     }
   };
 
@@ -82,9 +85,8 @@ const AddUser = () => {
         }),
       });
 
-
-
-
+      toast.success("Chat created!");
+      setUser(null);
     } catch (error) {
       console.error(
         "[AddUser] Failed to create chat:",
@@ -92,9 +94,8 @@ const AddUser = () => {
         error.message,
         error
       );
+      toast.error("Failed to create chat. Please try again.");
     }
-
-    setUser(null);
   };
 
   return (
