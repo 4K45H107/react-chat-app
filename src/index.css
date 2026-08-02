@@ -45,11 +45,50 @@ body {
   overflow: hidden;
 }
 
+.container > .list {
+  flex: 0 1 320px;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.container > .chat {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.container > .details {
+  flex: 0 1 280px;
+  min-width: 0;
+  max-width: 300px;
+}
+
 .loading {
   padding: 50px;
   font-size: 36px;
   border-radius: 10px;
   background-color: var(--color-surface-solid);
+}
+
+@media (max-width: 900px) {
+  .container > .details {
+    display: none;
+  }
+
+  .container > .list {
+    flex: 1;
+    max-width: none;
+  }
+}
+
+@media (max-width: 1200px) and (min-width: 901px) {
+  .container > .details {
+    display: none;
+  }
+
+  .container > .list {
+    flex: 0 1 260px;
+    max-width: 260px;
+  }
 }
 
 @media (max-width: 1024px) {

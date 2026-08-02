@@ -1,46 +1,72 @@
 .userInfo {
-  padding: 20px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  column-gap: 10px;
+  padding: 12px 16px;
+  min-width: 0;
+  border-bottom: 1px solid var(--color-border);
 
   .user {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 10px;
+    min-width: 0;
 
     img {
-      width: 50px;
-      height: 50px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    h3 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 15px;
     }
   }
 
-  .icons {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-left: 20px;
+  .actions {
+    flex-shrink: 0;
+  }
 
-    img {
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
+  .btn-lgout {
+    padding: 8px 14px;
+    background-color: #2462e7;
+    border: none;
+    outline: none;
+    border-radius: 5px;
+    color: white;
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #1b4cb6;
     }
+  }
+}
 
-    .btn-lgout {
-      padding: 10px 20px;
-      background-color: #2462e7;
-      border: none;
-      outline: none;
-      border-radius: 5px;
-      color: white;
-      cursor: pointer;
+@media (max-width: 480px) {
+  .userInfo {
+    padding: 10px 12px;
+    column-gap: 8px;
+  }
 
-      &:hover {
-        background-color: #1b4cb6;
-      }
-    }
+  .userInfo .user img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .userInfo .user h3 {
+    font-size: 14px;
+  }
+
+  .userInfo .btn-lgout {
+    padding: 7px 10px;
+    font-size: 12px;
   }
 }

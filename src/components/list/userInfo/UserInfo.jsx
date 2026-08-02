@@ -18,11 +18,8 @@ const UserInfo = () => {
         <h3>{currentUser.username}</h3>
       </div>
 
-      {/* ----- ICONS ----- */}
-      <div className="icons">
-        <img src="./more.png" alt="" />
-        <img src="./video.png" alt="" />
-        <img src="./edit.png" alt="" />
+      {/* ----- ACTIONS ----- */}
+      <div className="actions">
         <button className="btn-lgout" type="button" onClick={handleLogout}>
           Log Out
         </button>

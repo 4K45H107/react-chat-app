@@ -1,5 +1,7 @@
 .details {
   flex: 1;
+  min-width: 0;
+  overflow-y: auto;
 
   .user {
     padding: 30px 20px;
@@ -104,11 +106,5 @@
         opacity: 0.8;
       }
     }
-  }
-}
-
-@media (max-width: 1024px) {
-  .details {
-    display: none;
   }
 }
