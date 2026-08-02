@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./chat.css";
-import EmojiPicker from "emoji-picker-react";
+import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "react-toastify";
 import { db } from "../../lib/firebase";
 import {
@@ -25,6 +25,7 @@ const Chat = () => {
   const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
 
   const endRef = useRef(null);
+  const emojiRef = useRef(null);
 
   // Scroll to the latest message whenever the message list updates
   // (new incoming message, own send via snapshot, or opening a chat)
@@ -50,6 +51,20 @@ const Chat = () => {
 
     return () => unsub();
   }, [chatId]);
+
+  // Close emoji picker when clicking outside the picker/toggle
+  useEffect(() => {
+    if (!openEmoji) return;
+
+    const handleClickOutside = (event) => {
+      if (emojiRef.current && !emojiRef.current.contains(event.target)) {
+        setOpenEmoji(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openEmoji]);
 
   const handleEmoji = (e) => {
     let newText = text + e.emoji;
@@ -187,17 +202,17 @@ const Chat = () => {
           onChange={(e) => setText(e.target.value)}
           disabled={isChatBlocked}
         />
-        <div className="emoji">
+        <div className="emoji" ref={emojiRef}>
           <img
             src="./emoji.png"
-            alt=""
+            alt="Open emoji picker"
             onClick={() => !isChatBlocked && setOpenEmoji((prev) => !prev)}
           />
-          <div className="picker">
-            {openEmoji && !isChatBlocked && (
-              <EmojiPicker onEmojiClick={handleEmoji} />
-            )}
-          </div>
+          {openEmoji && !isChatBlocked && (
+            <div className="picker">
+              <EmojiPicker theme={Theme.DARK} onEmojiClick={handleEmoji} />
+            </div>
+          )}
         </div>
         <button
           className="sendButton"
