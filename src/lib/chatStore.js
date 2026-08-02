@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useUserStore } from "./userStore";
+import { normalizeUser } from "./normalizeUser";
 
 export const useChatStore = create((set) => ({
   chatId: null,
@@ -8,28 +9,25 @@ export const useChatStore = create((set) => ({
   isReceiverBlocked: false,
 
   changeChat: (chatId, user) => {
-    const currentUser = useUserStore.getState().currentUser;
-    if (!user || !currentUser) return;
+    const currentUser = normalizeUser(useUserStore.getState().currentUser);
+    const partner = normalizeUser(user);
+    if (!partner || !currentUser) return;
 
-    const theirBlockedList = user.blocked ?? [];
-    const myBlockedList = currentUser.blocked ?? [];
-
-    // Receiver blocked the current user — keep user for the header, flag blocks sending
-    if (theirBlockedList.includes(currentUser.id)) {
+    // blocked is always an array after normalizeUser — safe to call .includes()
+    if (partner.blocked.includes(currentUser.id)) {
       set({
         chatId,
-        user,
+        user: partner,
         isCurrentUserBlocked: true,
         isReceiverBlocked: false,
       });
       return;
     }
 
-    // Current user blocked the receiver — show chat read-only from their side
-    if (myBlockedList.includes(user.id)) {
+    if (currentUser.blocked.includes(partner.id)) {
       set({
         chatId,
-        user,
+        user: partner,
         isCurrentUserBlocked: false,
         isReceiverBlocked: true,
       });
@@ -38,7 +36,7 @@ export const useChatStore = create((set) => ({
 
     set({
       chatId,
-      user,
+      user: partner,
       isCurrentUserBlocked: false,
       isReceiverBlocked: false,
     });

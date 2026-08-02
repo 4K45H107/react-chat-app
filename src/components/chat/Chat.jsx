@@ -83,21 +83,18 @@ const Chat = () => {
         if (!userChatsSnapshot.exists()) continue;
 
         const userChatsData = userChatsSnapshot.data();
-        const chatIndex = userChatsData.chats.findIndex(
-          (c) => c.chatId === chatId
-        );
+        const chats = userChatsData.chats ?? [];
+        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
 
-        // Skip if this user's chat list doesn't contain this conversation
+        // Skip if this user's chat list is missing or has no entry for this chat
         if (chatIndex === -1) continue;
 
-        // Sender marks their own chat as seen; receiver gets isSeen: false
-        userChatsData.chats[chatIndex].lastMessage = text;
-        userChatsData.chats[chatIndex].isSeen =
-          participantId === currentUser.id;
-        userChatsData.chats[chatIndex].updatedAt = Date.now();
+        chats[chatIndex].lastMessage = text;
+        chats[chatIndex].isSeen = participantId === currentUser.id;
+        chats[chatIndex].updatedAt = Date.now();
 
         await updateDoc(userChatsRef, {
-          chats: userChatsData.chats,
+          chats,
         });
       }
 

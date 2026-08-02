@@ -47,6 +47,9 @@ const AddUser = () => {
   };
 
   const handleAdd = async () => {
+    // Guard: "+" must not run until a user has been found via search
+    if (!user?.id) return;
+
     const chatRef = collection(db, "chats");
     const userChatRef = collection(db, "userChats");
 
@@ -101,13 +104,15 @@ const AddUser = () => {
         <button>Search</button>
       </form>
 
-      <div className="user">
-        <div className="details">
-          <img src={user?.avatar || "./avatar.png"} alt="" />
-          <span>{user?.username}</span>
+      {user && (
+        <div className="user">
+          <div className="details">
+            <img src={user.avatar || "./avatar.png"} alt="" />
+            <span>{user.username}</span>
+          </div>
+          <button onClick={handleAdd}>+</button>
         </div>
-        <button onClick={handleAdd}>+</button>
-      </div>
+      )}
     </div>
   );
 };
