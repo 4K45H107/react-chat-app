@@ -23,8 +23,8 @@ const UserInfo = () => {
         <img src="./more.png" alt="" />
         <img src="./video.png" alt="" />
         <img src="./edit.png" alt="" />
-        <button className="logoutBtn" type="button" onClick={handleLogout}>
-          Log out
+        <button className="btn-lgout" type="button" onClick={handleLogout}>
+          Log Out
         </button>
       </div>
     </div>

@@ -1,14 +1,9 @@
 import React from "react";
 import "./details.css";
-import { auth } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 
 const Details = () => {
   const { user } = useChatStore();
-
-  const handleLogout = async () => {
-    await auth.signOut();
-  };
 
   return (
     <div className="details">
@@ -62,10 +57,6 @@ const Details = () => {
 
         {/* ----- BLOCK ----- */}
         <button className="btn-blk">Block User</button>
-        {/* ----- LOGOUT ----- */}
-        <button className="btn-lgout" onClick={handleLogout}>
-          Log Out
-        </button>
       </div>
     </div>
   );

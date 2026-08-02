@@ -104,19 +104,6 @@
         opacity: 0.8;
       }
     }
-
-    .btn-lgout {
-      padding: 10px 20px;
-      background-color: #2462e7;
-      border: none;
-      outline: none;
-      border-radius: 5px;
-      cursor: pointer;
-
-      &:hover {
-        background-color: #1b4cb6;
-      }
-    }
   }
 }
 

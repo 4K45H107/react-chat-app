@@ -29,18 +29,18 @@
       cursor: pointer;
     }
 
-    .logoutBtn {
-      padding: 6px 12px;
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      background-color: rgb(17, 25, 40, 0.5);
+    .btn-lgout {
+      padding: 10px 20px;
+      background-color: #2462e7;
+      border: none;
+      outline: none;
+      border-radius: 5px;
       color: white;
-      font-size: 12px;
       cursor: pointer;
-    }
 
-    .logoutBtn:hover {
-      background-color: rgb(17, 25, 40, 0.85);
+      &:hover {
+        background-color: #1b4cb6;
+      }
     }
   }
 }
