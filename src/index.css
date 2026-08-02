@@ -4,25 +4,36 @@
   box-sizing: border-box;
   font-family: "Lucida Sans", "Lucida Sans Regular", "Lucida Grande",
     "Lucida Sans Unicode", Geneva, Verdana, sans-serif;
-  color: white;
 }
 
 body {
   background-image: url("/bg.jpg");
+  background-size: cover;
+  background-position: center;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px;
+}
+
+.container,
+.loading {
+  color: white;
 }
 
 .container {
   width: 82vw;
   height: 90vh;
+  height: 90dvh;
+  max-width: 1400px;
   background-color: rgba(17, 25, 40, 0.75);
   backdrop-filter: blur(7px) saturate(180%);
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.125);
   display: flex;
+  overflow: hidden;
 }
 
 .loading {
@@ -30,4 +41,36 @@ body {
   font-size: 36px;
   border-radius: 10px;
   background-color: rgba(17, 25, 40, 0.9);
+}
+
+@media (max-width: 1024px) {
+  .container {
+    width: 95vw;
+    height: 92dvh;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 0;
+  }
+
+  .container {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .loading {
+    padding: 32px;
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .loading {
+    padding: 24px;
+    font-size: 20px;
+  }
 }

@@ -1,5 +1,6 @@
 .chatList {
   flex: 1;
+  position: relative;
   overflow: scroll;
   overflow-x: hidden;
   scroll-behavior: smooth;
