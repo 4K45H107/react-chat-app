@@ -9,33 +9,39 @@ export const useChatStore = create((set) => ({
 
   changeChat: (chatId, user) => {
     const currentUser = useUserStore.getState().currentUser;
+    if (!user || !currentUser) return;
 
-    // CHECK IF THE CURRENT USER IS BLOCKED
-    if (user.blocked.includes(currentUser.id)) {
+    const theirBlockedList = user.blocked ?? [];
+    const myBlockedList = currentUser.blocked ?? [];
+
+    // Receiver blocked the current user — keep user for the header, flag blocks sending
+    if (theirBlockedList.includes(currentUser.id)) {
       set({
         chatId,
-        user: null,
+        user,
         isCurrentUserBlocked: true,
         isReceiverBlocked: false,
       });
+      return;
     }
 
-    // CHECK IF THE RECEIVER IS BLOCKED
-    else if (currentUser.blocked.includes(user.id)) {
+    // Current user blocked the receiver — show chat read-only from their side
+    if (myBlockedList.includes(user.id)) {
       set({
         chatId,
         user,
         isCurrentUserBlocked: false,
         isReceiverBlocked: true,
       });
-    } else {
-      return set({
-        chatId,
-        user,
-        isCurrentUserBlocked: false,
-        isReceiverBlocked: false,
-      });
+      return;
     }
+
+    set({
+      chatId,
+      user,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+    });
   },
 
   changeBlock: () => {
