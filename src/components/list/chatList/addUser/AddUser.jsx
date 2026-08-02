@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./AddUser.css";
 import { toast } from "react-toastify";
 import {
@@ -15,9 +15,18 @@ import {
 import { db } from "../../../../lib/firebase";
 import { useUserStore } from "../../../../lib/userStore";
 
-const AddUser = () => {
+const AddUser = ({ onClose }) => {
   const [user, setUser] = useState(null);
   const { currentUser } = useUserStore();
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const handleUserSearch = async (e) => {
     e.preventDefault();
@@ -99,8 +108,13 @@ const AddUser = () => {
   };
 
   return (
-    <div className="addUser">
-      <form onSubmit={handleUserSearch}>
+    <>
+      <div className="addUserBackdrop" onClick={onClose} aria-hidden="true" />
+      <div className="addUser">
+        <button className="closeBtn" type="button" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+        <form onSubmit={handleUserSearch}>
         <input type="text" placeholder="Username" name="username" />
         <button>Search</button>
       </form>
@@ -114,7 +128,8 @@ const AddUser = () => {
           <button onClick={handleAdd}>+</button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

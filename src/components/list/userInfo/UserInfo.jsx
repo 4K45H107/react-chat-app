@@ -1,9 +1,14 @@
 import React from "react";
 import "./UserInfo.css";
+import { auth } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
 
 const UserInfo = () => {
   const { currentUser } = useUserStore();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+  };
 
   return (
     <div className="userInfo">
@@ -18,6 +23,9 @@ const UserInfo = () => {
         <img src="./more.png" alt="" />
         <img src="./video.png" alt="" />
         <img src="./edit.png" alt="" />
+        <button className="logoutBtn" type="button" onClick={handleLogout}>
+          Log out
+        </button>
       </div>
     </div>
   );

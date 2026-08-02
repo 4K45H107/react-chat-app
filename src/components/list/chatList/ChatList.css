@@ -9,6 +9,8 @@
     align-items: center;
     gap: 10px;
     padding: 20px;
+    position: relative;
+    z-index: 10;
 
     .searchBar {
       flex: 1;

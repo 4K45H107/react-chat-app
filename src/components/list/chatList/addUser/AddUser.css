@@ -1,13 +1,38 @@
-.addUser {
-  width: max-content;
-  height: max-content;
-  padding: 30px;
-  background-color: rgba(17, 25, 40, .9);
-  border-radius: 10px;
+.addUserBackdrop {
   position: absolute;
   inset: 0;
-  margin: auto;
+  z-index: 4;
+  background-color: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.addUser {
+  width: max-content;
+  max-width: calc(100% - 40px);
+  height: max-content;
+  padding: 30px;
+  background-color: rgba(17, 25, 40, 0.9);
+  border-radius: 10px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 5;
+
+  .closeBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background-color: rgb(17, 25, 40, 0.5);
+    color: white;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
 
   form {
     display: flex;
@@ -19,6 +44,7 @@
       border: none;
       outline: none;
       background-color: rgb(17, 25, 40, 0.5);
+      color: white;
     }
 
     button {
@@ -60,6 +86,7 @@
       cursor: pointer;
       border: none;
       outline: none;
+      color: white;
     }
   }
 }

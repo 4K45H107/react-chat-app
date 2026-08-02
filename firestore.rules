@@ -8,10 +8,10 @@ service cloud.firestore {
       allow create, update: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Per-user chat list — own doc on create/read; any signed-in user can update
-    // (AddUser writes to both users' userChats when starting a new chat)
+    // Per-user chat list — readable by any signed-in user (sender must read
+    // receiver's doc to update lastMessage when sending a message)
     match /userChats/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null;
     }

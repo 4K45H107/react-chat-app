@@ -91,30 +91,33 @@ const Chat = () => {
       const participantIds = [currentUser.id, user.id];
 
       for (const participantId of participantIds) {
-        // Each user has their own userChats/{uid} document — must use
-        // participantId here, NOT currentUser.id, or the receiver never updates.
-        const userChatsRef = doc(db, "userChats", participantId);
-        const userChatsSnapshot = await getDoc(userChatsRef);
+        try {
+          const userChatsRef = doc(db, "userChats", participantId);
+          const userChatsSnapshot = await getDoc(userChatsRef);
 
-        if (!userChatsSnapshot.exists()) continue;
+          if (!userChatsSnapshot.exists()) continue;
 
-        const userChatsData = userChatsSnapshot.data();
-        const chats = userChatsData.chats ?? [];
-        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
+          const userChatsData = userChatsSnapshot.data();
+          const chats = userChatsData.chats ?? [];
+          const chatIndex = chats.findIndex((c) => c.chatId === chatId);
 
-        // Skip if this user's chat list is missing or has no entry for this chat
-        if (chatIndex === -1) continue;
+          if (chatIndex === -1) continue;
 
-        chats[chatIndex].lastMessage = text;
-        chats[chatIndex].isSeen = participantId === currentUser.id;
-        chats[chatIndex].updatedAt = Date.now();
+          chats[chatIndex].lastMessage = text;
+          chats[chatIndex].isSeen = participantId === currentUser.id;
+          chats[chatIndex].updatedAt = Date.now();
 
-        await updateDoc(userChatsRef, {
-          chats,
-        });
+          await updateDoc(userChatsRef, { chats });
+        } catch (sidebarError) {
+          console.warn(
+            "[Chat] Failed to sync sidebar for participant:",
+            participantId,
+            sidebarError.code,
+            sidebarError.message
+          );
+        }
       }
 
-      // Clear input only after all writes succeed so failed sends keep the draft
       setText("");
     } catch (error) {
       console.error(
