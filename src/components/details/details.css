@@ -52,6 +52,12 @@
         margin-top: 10px;
         gap: 20px;
 
+        .emptyHint {
+          font-size: 14px;
+          color: lightgray;
+          font-weight: 300;
+        }
+
         .photoItem {
           .photoDetail {
             display: flex;

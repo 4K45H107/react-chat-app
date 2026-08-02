@@ -114,12 +114,15 @@ const Chat = () => {
     <div className="chat">
       {/* ------ TOP ------ */}
       <div className="top">
-        {/* ------ USER INFO ------ */}
+        {/* Active chat partner — populated from chatStore when a chat is selected */}
         <div className="user">
-          <img src="./avatar.png" alt="" />
+          <img
+            src={user?.avatar || "./avatar.png"}
+            alt={user?.username ?? "Chat partner"}
+          />
           <div className="texts">
-            <span>Safina Promity</span>
-            <p>I am safina</p>
+            <span>{user?.username ?? "Unknown user"}</span>
+            <p>{user?.email ?? ""}</p>
           </div>
         </div>
         {/* ---- ICONS ---- */}
