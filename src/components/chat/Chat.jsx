@@ -95,6 +95,9 @@ const Chat = () => {
           chats: userChatsData.chats,
         });
       }
+
+      // Clear input only after all writes succeed so failed sends keep the draft
+      setText("");
     } catch (error) {
       console.error(
         "[Chat] Failed to send message:",
