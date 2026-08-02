@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import "./Adduser.css";
+import "./AddUser.css";
 import { toast } from "react-toastify";
 import {
   arrayUnion,
@@ -19,7 +19,7 @@ const AddUser = () => {
   const [user, setUser] = useState(null);
   const { currentUser } = useUserStore();
 
-  const handleSearch = async (e) => {
+  const handleUserSearch = async (e) => {
     e.preventDefault();
 
     const formData = new FormData(e.target);
@@ -100,7 +100,7 @@ const AddUser = () => {
 
   return (
     <div className="addUser">
-      <form onSubmit={handleSearch}>
+      <form onSubmit={handleUserSearch}>
         <input type="text" placeholder="Username" name="username" />
         <button>Search</button>
       </form>

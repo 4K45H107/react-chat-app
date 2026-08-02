@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import "./Chatlist.css";
+import "./ChatList.css";
 import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
 import { useUserStore } from "../../../lib/userStore";
@@ -77,7 +77,7 @@ const ChatList = () => {
     return () => unSub();
   }, [currentUser.id]);
 
-  const handleSearch = (chat) => {
+  const handleSelectChat = (chat) => {
     if (!chat.user) return;
     changeChat(chat.chatId, chat.user);
   };
@@ -103,7 +103,7 @@ const ChatList = () => {
         <div
           className="item"
           key={chat.chatId}
-          onClick={() => handleSearch(chat)}
+          onClick={() => handleSelectChat(chat)}
         >
           <img src={chat.user.avatar || "./avatar.png"} alt="" />
           <div className="texts">

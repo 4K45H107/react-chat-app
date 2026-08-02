@@ -12,7 +12,7 @@ React chat app using Firebase as the backend. Real-time messaging with authentic
 - State management: Zustand
 - Backend: Firebase (Auth, Firestore, Storage)
 - UI: React Toastify, Emoji Picker React
-- Styling: CSS modules
+- Styling: Plain CSS with nesting
 
 ---
 

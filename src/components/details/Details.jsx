@@ -6,8 +6,7 @@ import { useChatStore } from "../../lib/chatStore";
 const Details = () => {
   const { user } = useChatStore();
 
-  const handLogOut = async () => {
-    // Sign out the user
+  const handleLogout = async () => {
     await auth.signOut();
   };
 
@@ -64,7 +63,7 @@ const Details = () => {
         {/* ----- BLOCK ----- */}
         <button className="btn-blk">Block User</button>
         {/* ----- LOGOUT ----- */}
-        <button className="btn-lgout" onClick={handLogOut}>
+        <button className="btn-lgout" onClick={handleLogout}>
           Log Out
         </button>
       </div>

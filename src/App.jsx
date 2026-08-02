@@ -16,8 +16,6 @@ const App = () => {
 
   // Fetch the user info when the app loads
   useEffect(() => {
-    // Listen for auth state changes
-    console.log("I am useEffect");
     const unSub = onAuthStateChanged(auth, (user) => {
       if (!user) {
         // Drop stale chatId/user from the previous session

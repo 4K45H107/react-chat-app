@@ -71,7 +71,7 @@
     }
   }
 
-  .seperator {
+  .separator {
     height: 80%;
     width: 2px;
     background-color: #dddddd35;
@@ -100,13 +100,9 @@
       }
     }
 
-    .seperator {
+    .separator {
       height: 2px;
       width: min(80%, 360px);
     }
   }
-}
-
-.toast {
-  color: #000;
 }

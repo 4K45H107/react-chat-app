@@ -180,18 +180,6 @@ const Chat = () => {
             </div>
           </div>
         ))}
-        {/* {chat?.messages?.map((message) => {
-          <div className="message own" key={message?.createdAt}>
-            <img src="./avatar.png" alt="" />
-            <div className="texts">
-              {message?.img && (
-                <img src="https://picsum.photos/200/300" alt="" />
-              )}
-              <p>{message.text}</p>
-              <span>1 min ago</span>
-            </div>
-          </div>;
-        })} */}
       </div>
       <div ref={endRef}></div>
       {/* Disable composer when either party has blocked the other */}
