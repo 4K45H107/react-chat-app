@@ -52,11 +52,10 @@ const Chat = () => {
   };
 
   const handleSend = async () => {
-    // if text is empty, return
     if (text === "") return;
 
     try {
-      // update the chat with the new message
+      // 1. Append the new message to the shared chat document
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
           senderId: currentUser.id,
@@ -65,35 +64,37 @@ const Chat = () => {
         }),
       });
 
-      // update the userChats in both ends
-      const userIDs = [currentUser.id, user.id];
+      // 2. Update each participant's userChats sidebar entry.
+      //    Both the sender and receiver need their own userChats doc updated
+      //    so lastMessage, isSeen, and updatedAt stay in sync on both sides.
+      const participantIds = [currentUser.id, user.id];
 
-      userIDs.forEach(async (id) => {
-        // update the userChats with the new message
-        const userChatsRef = doc(db, "userChats", currentUser.id);
-        const userChatSnapShot = await getDoc(userChatsRef);
+      for (const participantId of participantIds) {
+        // Each user has their own userChats/{uid} document — must use
+        // participantId here, NOT currentUser.id, or the receiver never updates.
+        const userChatsRef = doc(db, "userChats", participantId);
+        const userChatsSnapshot = await getDoc(userChatsRef);
 
-        if (userChatSnapShot.exists()) {
-          const userChatsData = userChatSnapShot.data();
+        if (!userChatsSnapshot.exists()) continue;
 
-          // find the chat in the userChats
-          const chatIndex = userChatsData.chats.findIndex(
-            (c) => c.chatId === chatId
-          );
+        const userChatsData = userChatsSnapshot.data();
+        const chatIndex = userChatsData.chats.findIndex(
+          (c) => c.chatId === chatId
+        );
 
-          // update the chat last message, isSeen, updatedAt
-          userChatsData.chats[chatIndex].lastMessage = text;
-          userChatsData.chats[chatIndex].isSeen =
-            id === currentUser.id ? true : false;
-          userChatsData.chats[chatIndex].updatedAt = Date.now();
+        // Skip if this user's chat list doesn't contain this conversation
+        if (chatIndex === -1) continue;
 
-          await updateDoc(userChatsRef, {
-            chats: userChatsData.chats,
-          });
-        }
-      });
+        // Sender marks their own chat as seen; receiver gets isSeen: false
+        userChatsData.chats[chatIndex].lastMessage = text;
+        userChatsData.chats[chatIndex].isSeen =
+          participantId === currentUser.id;
+        userChatsData.chats[chatIndex].updatedAt = Date.now();
 
-      console.log(chat);
+        await updateDoc(userChatsRef, {
+          chats: userChatsData.chats,
+        });
+      }
     } catch (error) {
       console.error(
         "[Chat] Failed to send message:",
