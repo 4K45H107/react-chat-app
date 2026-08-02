@@ -31,7 +31,12 @@ const Login = () => {
       // Sign in the user
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.log(error);
+      console.error(
+        "[Login] Sign in failed:",
+        error.code,
+        error.message,
+        error
+      );
       toast.error(error.message);
     } finally {
       setLoading(false);
@@ -69,8 +74,13 @@ const Login = () => {
       });
       toast.success("Account created successfully!");
     } catch (error) {
+      console.error(
+        "[Login] Registration failed:",
+        error.code,
+        error.message,
+        error
+      );
       toast.error(error.message);
-      console.log(error);
     } finally {
       setLoading(false);
     }

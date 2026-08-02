@@ -27,9 +27,20 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "chats", chatId), (res) => {
-      setChat(res.data());
-    });
+    const unsub = onSnapshot(
+      doc(db, "chats", chatId),
+      (res) => {
+        setChat(res.data());
+      },
+      (error) => {
+        console.error(
+          "[Chat] Failed to listen to chat messages:",
+          error.code,
+          error.message,
+          error
+        );
+      }
+    );
 
     return () => unsub();
   }, [chatId]);
@@ -84,7 +95,12 @@ const Chat = () => {
 
       console.log(chat);
     } catch (error) {
-      console.log(error.message);
+      console.error(
+        "[Chat] Failed to send message:",
+        error.code,
+        error.message,
+        error
+      );
     }
   };
 

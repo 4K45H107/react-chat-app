@@ -19,9 +19,7 @@ const ChatList = () => {
     const unSub = onSnapshot(
       doc(db, "userChats", currentUser.id),
       async (res) => {
-        // Get user info for each chat
-        // getDoc is a function that gets a document from Firestore
-        const items = res.data().chats;
+        const items = res.data()?.chats ?? [];
         const promises = items.map(async (item) => {
           const userDocRef = doc(db, "users", item.receiverId);
           const userDocSnap = await getDoc(userDocRef);
@@ -30,12 +28,17 @@ const ChatList = () => {
         });
 
         const chatList = await Promise.all(promises);
-        // show the latest message first
         setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
+      },
+      (error) => {
+        console.error(
+          "[ChatList] Failed to listen to userChats:",
+          error.code,
+          error.message,
+          error
+        );
       }
     );
-
-    console.log(chats);
 
     return () => unSub();
   }, [currentUser.id]);

@@ -33,9 +33,16 @@ const AddUser = () => {
 
       if (!querySnapShot.empty) {
         setUser(querySnapShot.docs[0].data());
+      } else {
+        console.warn("[AddUser] No user found for username:", username);
       }
     } catch (error) {
-      console.log(error);
+      console.error(
+        "[AddUser] User search failed:",
+        error.code,
+        error.message,
+        error
+      );
     }
   };
 
@@ -76,7 +83,12 @@ const AddUser = () => {
 
 
     } catch (error) {
-      console.log(error);
+      console.error(
+        "[AddUser] Failed to create chat:",
+        error.code,
+        error.message,
+        error
+      );
     }
 
     setUser(null);

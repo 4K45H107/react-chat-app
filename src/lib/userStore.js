@@ -7,22 +7,33 @@ export const useUserStore = create((set) => ({
   isLoading: true,
 
   fetchUserInfo: async (uid) => {
-    console.log("i am fetch")
-    if (!uid) return set({ currentUser: null, isLoading: false });
+    if (!uid) {
+      console.info("[userStore] No auth session — showing login");
+      return set({ currentUser: null, isLoading: false });
+    }
 
     try {
-      // Get the user document from Firestore
       const docRef = doc(db, "users", uid);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
+        console.info("[userStore] User profile loaded:", uid);
         set({ currentUser: docSnap.data(), isLoading: false });
       } else {
+        console.warn(
+          "[userStore] Auth user exists but Firestore doc missing:",
+          uid
+        );
         set({ currentUser: null, isLoading: false });
-        console.log("No such document!");
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "[userStore] Failed to fetch user profile:",
+        error.code,
+        error.message,
+        error
+      );
+      set({ currentUser: null, isLoading: false });
     }
   },
 }));

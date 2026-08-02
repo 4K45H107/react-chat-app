@@ -18,6 +18,12 @@ const upload = async (file) => {
         console.log("Upload is " + progress + "% done");
       },
       (error) => {
+        console.error(
+          "[upload] Avatar upload failed:",
+          error.code,
+          error.message,
+          error
+        );
         reject("Something went wrong! " + error.message);
       },
       () => {
