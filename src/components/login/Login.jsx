@@ -10,6 +10,7 @@ import { doc, setDoc } from "firebase/firestore";
 import upload from "../../lib/upload";
 
 const Login = () => {
+  const [mode, setMode] = useState("signin");
   const [avatar, setAvatar] = useState({ file: null, url: "" });
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,6 @@ const Login = () => {
     const { email, password } = Object.fromEntries(formData);
 
     try {
-      // Sign in the user
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       console.error(
@@ -47,22 +47,17 @@ const Login = () => {
   };
 
   const handleRegister = async (e) => {
-    // Prevent the form from submitting
     e.preventDefault();
     setLoading(true);
 
-    // Get the form data
     const formData = new FormData(e.target);
     const { username, email, password } = Object.fromEntries(formData);
 
     try {
-      // Create a new user
       const user = await createUserWithEmailAndPassword(auth, email, password);
 
-      // Upload the avatar in firebase storage - using middleware upload.js
       const imageUrl = await upload(avatar.file);
 
-      // Create a new user in firestore user collection
       await setDoc(doc(db, "users", user.user.uid), {
         username,
         email,
@@ -71,7 +66,6 @@ const Login = () => {
         avatar: imageUrl || "",
       });
 
-      // Create an empty chat list for the user
       await setDoc(doc(db, "userChats", user.user.uid), {
         chats: [],
       });
@@ -89,66 +83,94 @@ const Login = () => {
     }
   };
 
+  const isSignIn = mode === "signin";
+
   return (
     <div className="login">
       <div className="item">
-        <h2>Welcome Back!</h2>
-        <form onSubmit={handleLogin}>
-          <input
-            type="text"
-            placeholder="Email"
-            className="email"
-            name="email"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="password"
-            name="password"
-          />
-          <button disabled={loading}>
-            {loading ? "Loading..." : "Sign In"}
-          </button>
-        </form>
-      </div>
+        <h2>{isSignIn ? "Welcome Back!" : "Create an Account"}</h2>
 
-      <div className="separator"></div>
+        {isSignIn ? (
+          <form onSubmit={handleLogin}>
+            <input
+              type="text"
+              placeholder="Email"
+              className="email"
+              name="email"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="password"
+              name="password"
+            />
+            <button disabled={loading}>
+              {loading ? "Loading..." : "Sign In"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister}>
+            <input
+              type="text"
+              placeholder="Username"
+              className="username"
+              name="username"
+            />
+            <input
+              type="text"
+              placeholder="Email"
+              className="email"
+              name="email"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="password"
+              name="password"
+            />
+            <label htmlFor="file">
+              <img src={avatar.file ? avatar.url : "./avatar.png"} alt="" />
+              Upload an Image
+            </label>
+            <input
+              type="file"
+              id="file"
+              style={{ display: "none" }}
+              onChange={handleAvatar}
+            />
+            <button disabled={loading}>
+              {loading ? "Loading..." : "Sign Up"}
+            </button>
+          </form>
+        )}
 
-      <div className="item">
-        <h2>Create an Account</h2>
-        <form onSubmit={handleRegister}>
-          <input
-            type="text"
-            placeholder="Username"
-            className="username"
-            name="username"
-          />
-          <input
-            type="text"
-            placeholder="Email"
-            className="email"
-            name="email"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="password"
-            name="password"
-          />
-          <label htmlFor="file">
-            <img src={avatar.file ? avatar.url : "./avatar.png"} alt="" />
-            Upload an Image
-          </label>
-          <input
-            type="file"
-            id="file"
-            style={{ display: "none" }}
-            onChange={handleAvatar}
-          />
-          <button disabled={loading}>
-            {loading ? "Loading..." : "Sign up"}
-          </button>
-        </form>
+        <p className="switch">
+          {isSignIn ? (
+            <>
+              Don&apos;t have an account?{" "}
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={() => setMode("signup")}
+                disabled={loading}
+              >
+                Sign Up
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={() => setMode("signin")}
+                disabled={loading}
+              >
+                Sign In
+              </button>
+            </>
+          )}
+        </p>
       </div>
     </div>
   );
