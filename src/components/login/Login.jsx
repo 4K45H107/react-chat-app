@@ -3,10 +3,18 @@ import "./Login.css";
 import { toast } from "react-toastify";
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import upload from "../../lib/upload";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -116,19 +124,31 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const user = await createUserWithEmailAndPassword(auth, email, password);
+      // Auth is required to read users (see firestore.rules), so create the
+      // Auth account first, then reject duplicate usernames and roll back.
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+      const usernameSnap = await getDocs(
+        query(collection(db, "users"), where("username", "==", username))
+      );
+
+      if (!usernameSnap.empty) {
+        await deleteUser(cred.user);
+        toast.warn("That username is already taken. Please choose another.");
+        return;
+      }
 
       const imageUrl = await upload(avatar.file);
 
-      await setDoc(doc(db, "users", user.user.uid), {
+      await setDoc(doc(db, "users", cred.user.uid), {
         username,
         email,
-        id: user.user.uid,
+        id: cred.user.uid,
         blocked: [],
         avatar: imageUrl || "",
       });
 
-      await setDoc(doc(db, "userChats", user.user.uid), {
+      await setDoc(doc(db, "userChats", cred.user.uid), {
         chats: [],
       });
       toast.success("Account created successfully!");
