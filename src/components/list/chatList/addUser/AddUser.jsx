@@ -6,6 +6,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -87,6 +88,18 @@ const AddUser = ({ onClose }) => {
     const userChatRef = collection(db, "userChats");
 
     try {
+      // Avoid a second 1:1 thread with the same person
+      const myChatsSnap = await getDoc(doc(userChatRef, currentUser.id));
+      const existingChats = myChatsSnap.data()?.chats ?? [];
+      const alreadyChatting = existingChats.some(
+        (chat) => chat.receiverId === user.id
+      );
+
+      if (alreadyChatting) {
+        toast.warn(`You're already chatting with ${user.username}.`);
+        return;
+      }
+
       // New chat Id to access the chat document
       const newChatRef = doc(chatRef);
       // Add chat to userChats
