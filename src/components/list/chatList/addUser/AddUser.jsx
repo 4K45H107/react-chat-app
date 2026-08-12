@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import "./AddUser.css";
 import { toast } from "react-toastify";
 import {
@@ -107,29 +108,42 @@ const AddUser = ({ onClose }) => {
     }
   };
 
-  return (
+  return createPortal(
     <>
       <div className="addUserBackdrop" onClick={onClose} aria-hidden="true" />
-      <div className="addUser">
-        <button className="closeBtn" type="button" onClick={onClose} aria-label="Close">
+      <div
+        className="addUser"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add user"
+      >
+        <button
+          className="closeBtn"
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+        >
           ×
         </button>
         <form onSubmit={handleUserSearch}>
-        <input type="text" placeholder="Username" name="username" />
-        <button>Search</button>
-      </form>
+          <input type="text" placeholder="Username" name="username" />
+          <button type="submit">Search</button>
+        </form>
 
-      {user && (
-        <div className="user">
-          <div className="details">
-            <img src={user.avatar || "./avatar.png"} alt="" />
-            <span>{user.username}</span>
+        {user && (
+          <div className="user">
+            <div className="details">
+              <img src={user.avatar || "./avatar.png"} alt="" />
+              <span>{user.username}</span>
+            </div>
+            <button type="button" onClick={handleAdd}>
+              +
+            </button>
           </div>
-          <button onClick={handleAdd}>+</button>
-        </div>
-      )}
+        )}
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 
