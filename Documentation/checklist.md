@@ -42,15 +42,16 @@ Assumes **~8–12 focused hours/week** (evenings / weekends). Dates are relative
 
 | Done | Pri | Item | Notes |
 |------|-----|------|--------|
-| [ ] | P1 | Chat-list search/filter | Filter loaded chats by username / lastMessage |
-| [ ] | P1 | Mark as read on open | Set own `isSeen: true` in `changeChat` or Chat mount |
-| [ ] | P1 | Unread styling in list | Dim/bold or badge when `!isSeen` |
-| [ ] | P1 | Wire **Block User** | Update `users.blocked` in Firestore; refresh store flags |
-| [ ] | P1 | Unblock when already blocked | Same button toggles |
-| [ ] | P1 | Empty states | No chats / no messages copy in list and thread |
-| [ ] | P1 | Login validation | Required fields, basic email/password checks, clearer errors |
-| [ ] | P2 | Username uniqueness on sign-up | Query before create; reject duplicates |
+| [x] | P1 | Chat-list search/filter | Filter loaded chats by username / lastMessage |
+| [x] | P1 | Mark as read on open | Set own `isSeen: true` on Chat mount |
+| [x] | P1 | Unread styling in list | Bold/weight + background when `!isSeen` |
+| [x] | P1 | Wire **Block User** | Update `users.blocked` in Firestore; refresh store flags |
+| [x] | P1 | Unblock when already blocked | Same button toggles |
+| [x] | P1 | Empty states | No chats / no messages / no search matches |
+| [x] | P1 | Login validation | Required fields, basic email/password checks, clearer errors |
+| [x] | P2 | Username uniqueness on sign-up | After Auth create, query + roll back if taken |
 
+**Status:** Phase 2 complete.  
 **Exit criteria:** You can find chats, see unread, block/unblock, and onboarding doesn’t allow duplicate usernames.
 
 ---
@@ -145,13 +146,13 @@ Week 11+   Groups, calls, themes, CI — as needed
 
 ---
 
-## What to do **next** (Phase 2)
+## What to do **next** (Phase 3)
 
-1. [ ] Chat-list search/filter
-2. [ ] Mark seen on open + unread list style
-3. [ ] Wire Block / Unblock user
-4. [ ] Empty states + login validation
-5. [ ] Username uniqueness on sign-up
+1. [ ] Send image messages (reuse `upload.js`)
+2. [ ] Render image bubbles in Chat
+3. [ ] Add `firebase.json` + deploy docs for rules
+4. [ ] Tighten Storage rules to uid-owned paths
+5. [ ] Loading states for list/send + error boundary
 
 ---
 

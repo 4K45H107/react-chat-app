@@ -39,7 +39,7 @@ src/
       List.jsx            # Sidebar shell
       userInfo/UserInfo.jsx   # Avatar, name, logout
       chatList/
-        ChatList.jsx      # Real-time chat list + search UI stub
+        ChatList.jsx      # Real-time chat list + search filter
         addUser/AddUser.jsx   # Username search + create chat
     chat/Chat.jsx         # Message thread + composer
     details/Details.jsx   # Partner info panel (toggle)
@@ -91,7 +91,7 @@ App.jsx
 | `isReceiverBlocked` | I blocked partner |
 | `showDetails` | Details panel visibility |
 | `changeChat(chatId, user)` | Open chat; compute block flags; details closed |
-| `changeBlock()` | Flip local `isReceiverBlocked` only (no Firestore write yet) |
+| `changeBlock()` | Flip local `isReceiverBlocked` (Details also writes Firestore) |
 | `toggleDetails()` | Show/hide Details |
 | `closeChat()` / `resetChat()` | Clear chat state (back button / logout) |
 
@@ -125,7 +125,7 @@ UI toggles between sign-in and sign-up in one component (`mode` state).
 ### 3. Sidebar
 
 - **UserInfo:** shows `currentUser`; **Log Out** calls `auth.signOut()`.
-- **ChatList:** `onSnapshot` on `userChats/{currentUser.id}`, joins each `receiverId` to `users`, sorts by `updatedAt`.
+- **ChatList:** `onSnapshot` on `userChats/{currentUser.id}`, joins each `receiverId` to `users`, sorts by `updatedAt`, filters by search, styles unread rows.
 - **AddUser:** portal dialog; search by exact username; creates `chats` + both `userChats` entries.
 
 ### 4. Conversation
@@ -158,13 +158,17 @@ Real-time paths:
 ## Features that work today
 
 - Email/password auth + session persistence
+- Sign-up validation (required fields, email/password rules) + unique usernames
 - Avatar upload on sign-up
 - Username search and 1:1 chat creation (no self-chat; no duplicate pair; create locked against double-clicks)
+- Chat-list filter by username / last message
 - Real-time chat list and messages
 - Last-message preview + sort by `updatedAt`
+- Mark as seen on open + unread list styling
 - Message ids, relative timestamps, Enter to send
+- Empty states (no chats, no search matches, no messages)
 - Emoji picker in composer
-- Block-aware UI (flags from `blocked` arrays; send disabled)
+- Block / unblock from Details (Firestore `blocked` + composer disabled)
 - Details panel toggle; logout from sidebar
 - Toast errors/success on main failure paths
 - Firestore + Storage security rules in repo (signed-in only)
@@ -173,12 +177,10 @@ Real-time paths:
 
 ## Not implemented (UI often present)
 
-- Chat-list text search
-- Block user button writing to Firestore
 - Image / camera / mic / phone / video actions
-- Unread badges / mark-as-read when opening a chat
 - Shared photos/files in Details
-- Empty-state copy for no chats / no messages
+- Unread count badges / delivery ticks beyond bold rows
+- Typing indicators and presence
 
 See [suggestions.md](./suggestions.md) for the prioritized backlog.
 

@@ -53,8 +53,10 @@ onSnapshot(doc(db, "userChats", currentUser.id), async (res) => {
 });
 ```
 
-- Search input in the list header is UI-only (does not filter).
+- Search input filters loaded chats by username / lastMessage (client-side).
 - Click item → `handleSelectChat` → `changeChat(chat.chatId, chat.user)`.
+- Rows with `isSeen === false` get an `unread` class (bold preview).
+- Empty list / empty search copy when there is nothing to show.
 
 ---
 
@@ -101,9 +103,11 @@ For each of `[currentUser.id, user.id]`:
 3. Set `lastMessage`, `updatedAt = Date.now()`, `isSeen = (participantId === currentUser.id)`
 4. `updateDoc` that participant’s `chats` array
 
-Sender’s sidebar entry is marked seen; receiver’s is not. Opening a chat does **not** clear `isSeen` yet, and the list UI does not style unread rows.
+Sender’s sidebar entry is marked seen; receiver’s is not. Opening a chat runs a mark-as-seen update on the current user’s `userChats` entry (`Chat.jsx` mount effect). Unread rows are styled in `ChatList`.
 
 Failures on a single sidebar update are logged; the message may still exist in `chats`.
+
+Empty thread (no messages, not blocked) shows “No messages yet…” copy.
 
 ---
 
@@ -124,12 +128,13 @@ Changing conversations remounts the listener for the new `chatId`. The message l
 
 ## Blocking behavior (client)
 
-| Situation | UI |
-|-----------|-----|
+| Situation | UI / data |
+|-----------|-----------|
 | Either block flag true | Banner in thread; composer + send + emoji disabled |
-| Details “Block User” | Button only — does **not** write `users.blocked` or call `changeBlock` |
+| Details **Block User** | `arrayUnion` partner id onto `users/{me}.blocked`; set `isReceiverBlocked` |
+| Details **Unblock User** | `arrayRemove` partner id; clear `isReceiverBlocked` |
 
-`changeBlock` in the store flips local `isReceiverBlocked` only; nothing calls it from the UI yet.
+Block state is owned by the current user’s `blocked` array (rules only allow updating your own `users` doc). Partner “blocked me” still comes from their profile when opening the chat.
 
 ---
 

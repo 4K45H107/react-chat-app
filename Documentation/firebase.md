@@ -85,7 +85,7 @@ Document ID = Firebase Auth UID. One document per user: their sidebar chat list.
       receiverId: "other_uid",  // the other person from THIS user's view
       lastMessage: "Hello!",
       updatedAt: 1712345678901, // number (Date.now()) — used for sort
-      isSeen: false             // set on send; not yet shown / cleared on open
+      isSeen: false             // false for receiver on send; set true when they open the chat
     }
   ]
 }
@@ -95,6 +95,7 @@ Created empty (`chats: []`) at sign-up. Updated when:
 
 - A chat is created (`AddUser.jsx` — `arrayUnion` on both users)
 - A message is sent (`Chat.jsx` — updates both participants’ entries)
+- A chat is opened (`Chat.jsx` — marks own entry `isSeen: true`)
 
 Listened with `onSnapshot` in `ChatList.jsx`.
 
@@ -164,7 +165,7 @@ Chat image / camera / mic buttons in the UI are not wired to Storage yet.
 | Action | API | Side effects |
 |--------|-----|----------------|
 | Sign in | `signInWithEmailAndPassword` | `onAuthStateChanged` → `fetchUserInfo` |
-| Sign up | `createUserWithEmailAndPassword` | Create `users` + `userChats` docs; optional avatar upload |
+| Sign up | `createUserWithEmailAndPassword` | Unique username check (then `users` + `userChats`); optional avatar upload |
 | Session | `onAuthStateChanged` in `App.jsx` | Loads profile; on logout calls `resetChat()` |
 | Sign out | `auth.signOut()` in `UserInfo.jsx` | Clears auth → login screen |
 
@@ -227,10 +228,9 @@ No composite indexes are required for the current code. Add indexes if you later
 ## Quirks and limits to know
 
 1. **Messages as arrays:** whole message list is unioned on one document — cost and size grow with history.
-2. **`isSeen`:** written on send; UI does not show unread badges or mark read on open.
-3. **Username uniqueness:** search is exact match only; sign-up does not enforce unique usernames.
-4. **Legacy chat docs:** older documents may still have misspelled `creterdAt` or messages without `id` (UI falls back for keys).
-5. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
+2. **Username uniqueness:** enforced in the client after Auth create (rules require auth to read `users`); roll back deletes the Auth user if the name is taken. Not enforced in security rules.
+3. **Legacy chat docs:** older documents may still have misspelled `creterdAt` or messages without `id` (UI falls back for keys).
+4. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
 
 Duplicate 1:1 chats are blocked in the client (existing `receiverId` check + sync create lock). Not enforced in security rules.
 
