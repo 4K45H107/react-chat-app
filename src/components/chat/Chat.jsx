@@ -85,6 +85,7 @@ const Chat = () => {
       // 1. Append the new message to the shared chat document
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
+          id: crypto.randomUUID(),
           senderId: currentUser.id,
           text,
           createdAt: new Date(),
@@ -183,12 +184,12 @@ const Chat = () => {
               : "You blocked this user."}
           </p>
         )}
-        {chat?.messages?.map((message) => (
+        {chat?.messages?.map((message, index) => (
           <div
             className={`message ${
               message.senderId === currentUser.id && "own"
             }`}
-            key={message.createdAt}
+            key={message.id ?? `${message.senderId}-${index}`}
           >
             <div className="texts">
               <p>{message.text}</p>
