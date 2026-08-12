@@ -1,9 +1,46 @@
-import React from "react";
+import React, { useState } from "react";
 import "./details.css";
+import { toast } from "react-toastify";
+import { arrayUnion, doc, updateDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
+import { useUserStore } from "../../lib/userStore";
+import { normalizeUser } from "../../lib/normalizeUser";
 
 const Details = () => {
-  const { user } = useChatStore();
+  const { user, isReceiverBlocked } = useChatStore();
+  const { currentUser } = useUserStore();
+  const [isBlocking, setIsBlocking] = useState(false);
+
+  const handleBlock = async () => {
+    if (!user?.id || !currentUser?.id || isReceiverBlocked || isBlocking) return;
+
+    setIsBlocking(true);
+    try {
+      await updateDoc(doc(db, "users", currentUser.id), {
+        blocked: arrayUnion(user.id),
+      });
+
+      useUserStore.setState({
+        currentUser: normalizeUser({
+          ...currentUser,
+          blocked: [...currentUser.blocked, user.id],
+        }),
+      });
+      useChatStore.setState({ isReceiverBlocked: true });
+      toast.success(`Blocked ${user.username}`);
+    } catch (error) {
+      console.error(
+        "[Details] Failed to block user:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to block user. Please try again.");
+    } finally {
+      setIsBlocking(false);
+    }
+  };
 
   return (
     <div className="details">
@@ -56,7 +93,18 @@ const Details = () => {
         </div>
 
         {/* ----- BLOCK ----- */}
-        <button className="btn-blk">Block User</button>
+        <button
+          className="btn-blk"
+          type="button"
+          onClick={handleBlock}
+          disabled={isBlocking || isReceiverBlocked}
+        >
+          {isBlocking
+            ? "Blocking..."
+            : isReceiverBlocked
+              ? "Blocked"
+              : "Block User"}
+        </button>
       </div>
     </div>
   );
