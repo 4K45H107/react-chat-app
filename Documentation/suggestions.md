@@ -8,62 +8,60 @@ Status relative to the current codebase (Aug 2026). Fixed items are listed at th
 
 ## Open bugs / data issues
 
-1. **Legacy data:** Older `chats` docs may still have `creterdAt` or messages without `id` (new writes are correct; UI falls back for keys).
+1. **Legacy data:** Older `chats` docs may still have `creterdAt` or messages without `id` (new writes are correct; UI falls back for keys). Older Storage objects may sit on flat `images/{filename}` (read-only under current rules).
 2. **Username uniqueness race:** Check runs after Auth create (rules require auth to read `users`); rare double-signup with the same name is still possible without rules/Functions.
+3. **Storage rules in production:** Repo rules are tighter (`images/{uid}/...`); deploy with `firebase deploy --only storage` if the live project still uses the old open rules.
 
 ---
 
 ## Missing features (high value for chat)
 
-3. **Image / file messages** (composer icons exist; Storage path pattern already used for avatars).
 4. Message **delete** / **edit**.
 5. **Typing** indicators and **online/offline** presence.
 6. **Pagination** / subcollection for messages (array-on-document will hit size/cost limits).
+7. Camera / mic / phone / video composer actions (image attach works; others are placeholders).
+8. Shared photos/files panel in Details (images in thread only).
 
 ---
 
-## Security (rules exist but are broad)
+## Security (rules exist but are broad on Firestore)
 
-Rules files are in the repo (`firestore.rules`, `storage.rules`) and require auth. Still recommended:
-
-7. Restrict `chats` read/write to conversation participants only.
-8. Restrict `userChats` updates so senders can only patch the relevant chat entry (or move sidebar updates to Cloud Functions).
-9. Storage: only allow writes under paths owned by `request.auth.uid`.
-10. Validate message shape / max length in rules or Functions.
-11. Rate-limit sends (Functions or App Check).
+9. Restrict `chats` read/write to conversation participants only.
+10. Restrict `userChats` updates so senders can only patch the relevant chat entry (or move sidebar updates to Cloud Functions).
+11. Validate message shape / max length in rules or Functions.
+12. Rate-limit sends (Functions or App Check).
 
 ---
 
 ## UX polish
 
-12. Unread count badges and delivery/read indicators beyond bold list rows.
-13. Loading skeletons for list and thread (beyond global “Loading…”).
-14. Browser notifications for new messages (needs FCM or Notification API + permission).
-15. Responsive / a11y pass (ARIA on icon buttons is partly started).
-16. Multiline composer (Shift+Enter already reserved).
+13. Unread count badges and delivery/read indicators beyond bold list rows.
+14. Thread loading skeleton (list skeleton exists).
+15. Browser notifications for new messages (needs FCM or Notification API + permission).
+16. Responsive / a11y pass (ARIA on icon buttons is partly started).
+17. Multiline composer (Shift+Enter already reserved).
 
 ---
 
 ## Code quality and architecture
 
-17. Extract Firestore access into a small service layer (auth, users, chats).
-18. Centralize collection/field name constants.
-19. Required avatar policy on sign-up (optional today).
-20. Error boundary around the authenticated shell.
+18. Extract Firestore access into a small service layer (auth, users, chats).
+19. Centralize collection/field name constants.
+20. Required avatar policy on sign-up (optional today).
 21. TypeScript or JSDoc typedefs for User / ChatMeta / Message.
 22. Unit tests for `normalizeUser`, `changeChat` block logic, and send/sidebar sync helpers.
-23. Add `firebase.json` + documented deploy for rules; keep secrets out of git (API key is expected in Vite client bundles but still rotate if leaked).
 
 ---
 
 ## Larger product ideas
 
-24. Group chats  
-25. Voice messages / calls (phone & video icons are placeholders)  
-26. Message search inside a thread  
-27. Chat archive / mute  
-28. Offline cache (Firestore persistence is a quick win)  
-29. Themes / customization  
+23. Group chats  
+24. Voice messages / calls (phone & video icons are placeholders)  
+25. Message search inside a thread  
+26. Chat archive / mute  
+27. Offline cache (Firestore persistence is a quick win)  
+28. Themes / customization  
+29. Profile settings (change avatar / username after sign-up)  
 
 ---
 
@@ -89,3 +87,8 @@ Rules files are in the repo (`firestore.rules`, `storage.rules`) and require aut
 | No empty states | List / search / thread empty copy |
 | Weak login validation | Required fields, email/password checks, clearer Auth toasts |
 | Duplicate usernames on sign-up | Query after Auth create; delete Auth user if taken |
+| Image attach not wired | Upload + `img` on message; bubble + click to open |
+| Flat open Storage writes | `images/{uid}/...` owner-only write; size/type checks |
+| No `firebase.json` | Present + deploy docs in `firebase.md` |
+| No list/send loading UX | List skeleton; composer disabled while sending |
+| No error boundary | Authenticated shell wrapped |

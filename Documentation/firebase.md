@@ -127,7 +127,8 @@ Shared conversation document. ID is auto-generated (`doc(collection(db, "chats")
     {
       id: "uuid",           // crypto.randomUUID() on send (older msgs may lack id)
       senderId: "user_uid",
-      text: "Hello!",
+      text: "Hello!",       // may be "" for image-only messages
+      img: "https://...",   // optional Storage download URL
       createdAt: Date        // client Date; stored as Timestamp in Firestore
     }
   ]
@@ -165,15 +166,16 @@ Details and step-by-step flows: [chat-flow.md](./chat-flow.md).
 
 | Path | Purpose |
 |------|---------|
-| `images/{Date + filename}` | Avatars uploaded in `src/lib/upload.js` |
+| `images/{uid}/{timestamp}_{filename}` | Avatars + chat images (`upload.js` with `{ uid }`) |
+| `images/{filename}` (legacy) | Older uploads — **read-only** under current rules |
 
-Flow on sign-up:
+Flow on sign-up / image send:
 
-1. `createUserWithEmailAndPassword`
-2. `upload(file)` → `uploadBytesResumable` → `getDownloadURL`
-3. URL stored on `users/{uid}.avatar`
+1. `upload(file, { uid })` → `uploadBytesResumable` under `images/{uid}/...` → `getDownloadURL`
+2. Avatar URL → `users/{uid}.avatar`
+3. Chat image URL → message `img` field
 
-Chat image / camera / mic buttons in the UI are not wired to Storage yet.
+Composer camera / mic buttons are not wired yet.
 
 ---
 
@@ -211,11 +213,11 @@ chats/{chatId}
 ### Storage (`storage.rules`)
 
 ```
-images/**
-  read/write: any signed-in user
+images/{userId}/**   read: signed-in; write: owner uid + image/* + <5MB
+images/{fileName}    read: signed-in; write: denied (legacy)
 ```
 
-These stop anonymous access but are still loose: any signed-in user can read all profiles and chat docs, and update any `userChats` / `chats` document. Tighten before a public launch (participant checks, field-level validation, Storage path ownership).
+Firestore rules are still broad (any signed-in user can read/write chats). Storage writes are owner-scoped. Deploy after changing rules files.
 
 ---
 

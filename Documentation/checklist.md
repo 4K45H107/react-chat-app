@@ -64,14 +64,16 @@ Assumes **~8–12 focused hours/week** (evenings / weekends). Dates are relative
 
 | Done | Pri | Item | Notes |
 |------|-----|------|--------|
-| [ ] | P1 | Send image messages | Reuse `upload.js`; store `img` URL on message object |
-| [ ] | P1 | Render image bubbles in `Chat` | Click-to-open optional |
-| [ ] | P2 | Add `firebase.json` + deploy docs | Deploy `firestore.rules` / `storage.rules` via CLI |
-| [ ] | P2 | Tighten Storage rules | Write only under `images/{uid}/...` or similar |
-| [ ] | P2 | Loading states for list/send | Disable send while uploading; list skeleton optional |
-| [ ] | P2 | Error boundary | Wrap authenticated shell |
+| [x] | P1 | Send image messages | Reuse `upload.js`; store `img` URL on message object |
+| [x] | P1 | Render image bubbles in `Chat` | Click opens full image in a new tab |
+| [x] | P2 | Add `firebase.json` + deploy docs | Deploy `firestore.rules` / `storage.rules` via CLI |
+| [x] | P2 | Tighten Storage rules | Write only under `images/{uid}/...` |
+| [x] | P2 | Loading states for list/send | List skeleton; composer disabled while sending/uploading |
+| [x] | P2 | Error boundary | Wrap authenticated shell |
 
-**Exit criteria:** Avatar + chat images upload under clearer paths; rules deployable from repo.
+**Status:** Phase 3 complete.  
+**Exit criteria:** Avatar + chat images upload under clearer paths; rules deployable from repo.  
+**Note:** Deploy updated `storage.rules` with `firebase deploy --only storage` so production matches the repo.
 
 ---
 
@@ -146,13 +148,13 @@ Week 11+   Groups, calls, themes, CI — as needed
 
 ---
 
-## What to do **next** (Phase 3)
+## What to do **next** (Phase 4)
 
-1. [ ] Send image messages (reuse `upload.js`)
-2. [ ] Render image bubbles in Chat
-3. [ ] Add `firebase.json` + deploy docs for rules
-4. [ ] Tighten Storage rules to uid-owned paths
-5. [ ] Loading states for list/send + error boundary
+1. [ ] Add `participantIds` on chat create + restrict `chats` rules
+2. [ ] Narrow `userChats` update rules (or Cloud Functions)
+3. [ ] Validate message fields in rules
+4. [ ] Move messages to a subcollection + pagination
+5. [ ] Thin Firestore service layer helpers
 
 ---
 

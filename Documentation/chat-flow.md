@@ -92,7 +92,7 @@ await updateDoc(doc(db, "chats", chatId), {
 });
 ```
 
-Composer: **Enter** sends; **Shift+Enter** reserved for future multiline. Bubbles show `formatMessageTime(createdAt)` (`src/lib/formatTime.js`). React keys use `message.id` when present.
+Composer: **Enter** sends text; **Shift+Enter** reserved for future multiline. Image icon opens a file picker → Storage upload → message with optional `img` + caption; sidebar preview uses caption or `"Photo"`. Bubbles show images (click opens full URL) and `formatMessageTime(createdAt)`. React keys use `message.id` when present.
 
 **Step B — both sidebars**
 

@@ -24,16 +24,17 @@ For backlog and remaining bugs, see [suggestions.md](./suggestions.md).
 
 ```
 src/
-  App.jsx                 # Auth gate + layout shell
+  App.jsx                 # Auth gate + layout shell + error boundary
   main.jsx                # React entry
   lib/
     firebase.js           # Firebase app, db, auth, storage
-    upload.js             # Avatar upload to Storage
+    upload.js             # Image upload to Storage (images/{uid}/...)
     formatTime.js         # Message timestamp formatting
     normalizeUser.js      # Ensures user.blocked is always an array
     userStore.js          # currentUser + fetchUserInfo
     chatStore.js          # active chat, block flags, details panel
   components/
+    ErrorBoundary.jsx     # Authenticated shell crash recovery
     login/Login.jsx       # Sign in / sign up
     list/
       List.jsx            # Sidebar shell
@@ -41,9 +42,10 @@ src/
       chatList/
         ChatList.jsx      # Real-time chat list + search filter
         addUser/AddUser.jsx   # Username search + create chat
-    chat/Chat.jsx         # Message thread + composer
+    chat/Chat.jsx         # Message thread + composer (text + images)
     details/Details.jsx   # Partner info panel (toggle)
     notification/Notification.jsx  # Toast host
+firebase.json             # Firestore/Storage rules deploy config
 firestore.rules
 storage.rules
 Documentation/            # Product docs (this folder)
@@ -159,10 +161,11 @@ Real-time paths:
 
 - Email/password auth + session persistence
 - Sign-up validation (required fields, email/password rules) + unique usernames
-- Avatar upload on sign-up
+- Avatar upload on sign-up (`images/{uid}/...`)
 - Username search and 1:1 chat creation (no self-chat; no duplicate pair; create locked against double-clicks)
-- Chat-list filter by username / last message
+- Chat-list filter by username / last message + loading skeleton
 - Real-time chat list and messages
+- Text + **image** messages (upload, bubble, click to open)
 - Last-message preview + sort by `updatedAt`
 - Mark as seen on open + unread list styling
 - Message ids, relative timestamps, Enter to send
@@ -171,16 +174,18 @@ Real-time paths:
 - Block / unblock from Details (Firestore `blocked` + composer disabled)
 - Details panel toggle; logout from sidebar
 - Toast errors/success on main failure paths
-- Firestore + Storage security rules in repo (signed-in only)
+- Error boundary around authenticated shell
+- Firestore + Storage rules in repo (`firebase.json` + deploy docs)
 
 ---
 
 ## Not implemented (UI often present)
 
-- Image / camera / mic / phone / video actions
+- Camera / mic / phone / video actions
 - Shared photos/files in Details
 - Unread count badges / delivery ticks beyond bold rows
 - Typing indicators and presence
+- Profile settings (change avatar / username after sign-up)
 
 See [suggestions.md](./suggestions.md) for the prioritized backlog.
 
