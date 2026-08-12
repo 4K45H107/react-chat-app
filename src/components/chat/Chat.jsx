@@ -183,7 +183,7 @@ const Chat = () => {
 
     setIsSending(true);
     try {
-      const imgUrl = await upload(file);
+      const imgUrl = await upload(file, { uid: currentUser.id });
       if (!imgUrl) {
         toast.error("Failed to upload image. Please try again.");
         return;

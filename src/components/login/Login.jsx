@@ -138,7 +138,7 @@ const Login = () => {
         return;
       }
 
-      const imageUrl = await upload(avatar.file);
+      const imageUrl = await upload(avatar.file, { uid: cred.user.uid });
 
       await setDoc(doc(db, "users", cred.user.uid), {
         username,

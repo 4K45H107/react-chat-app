@@ -1,12 +1,19 @@
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { storage } from "./firebase";
 
-const upload = async (file) => {
+/**
+ * Upload an image to Firebase Storage.
+ * Prefer path images/{uid}/... so Storage rules can require ownership.
+ */
+const upload = async (file, { uid } = {}) => {
   if (!file) return null;
 
-  const date = new Date();
+  const safeName = String(file.name || "image").replace(/[^\w.\-]+/g, "_");
+  const path = uid
+    ? `images/${uid}/${Date.now()}_${safeName}`
+    : `images/${Date.now()}_${safeName}`;
 
-  const storageRef = ref(storage, `images/${date + file.name}`);
+  const storageRef = ref(storage, path);
   const uploadTask = uploadBytesResumable(storageRef, file);
 
   return new Promise((resolve, reject) => {
@@ -15,7 +22,7 @@ const upload = async (file) => {
       () => {},
       (error) => {
         console.error(
-          "[upload] Avatar upload failed:",
+          "[upload] Image upload failed:",
           error.code,
           error.message,
           error
@@ -23,9 +30,7 @@ const upload = async (file) => {
         reject("Something went wrong! " + error.message);
       },
       () => {
-        getDownloadURL(uploadTask.snapshot.ref)
-          .then(resolve)
-          .catch(reject);
+        getDownloadURL(uploadTask.snapshot.ref).then(resolve).catch(reject);
       }
     );
   });
