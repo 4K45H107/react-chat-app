@@ -7,6 +7,7 @@ const emptyChatState = {
   user: null,
   isCurrentUserBlocked: false,
   isReceiverBlocked: false,
+  showDetails: false,
 };
 
 export const useChatStore = create((set) => ({
@@ -17,39 +18,47 @@ export const useChatStore = create((set) => ({
     const partner = normalizeUser(user);
     if (!partner || !currentUser) return;
 
+    // Selecting a chat opens the conversation only — details stays closed
+    // until the user toggles it from the chat header.
+    const next = {
+      chatId,
+      user: partner,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+      showDetails: false,
+    };
+
     // blocked is always an array after normalizeUser — safe to call .includes()
     if (partner.blocked.includes(currentUser.id)) {
       set({
-        chatId,
-        user: partner,
+        ...next,
         isCurrentUserBlocked: true,
-        isReceiverBlocked: false,
       });
       return;
     }
 
     if (currentUser.blocked.includes(partner.id)) {
       set({
-        chatId,
-        user: partner,
-        isCurrentUserBlocked: false,
+        ...next,
         isReceiverBlocked: true,
       });
       return;
     }
 
-    set({
-      chatId,
-      user: partner,
-      isCurrentUserBlocked: false,
-      isReceiverBlocked: false,
-    });
+    set(next);
   },
 
   changeBlock: () => {
     set((state) => ({
       ...state,
       isReceiverBlocked: !state.isReceiverBlocked,
+    }));
+  },
+
+  toggleDetails: () => {
+    set((state) => ({
+      ...state,
+      showDetails: !state.showDetails,
     }));
   },
 

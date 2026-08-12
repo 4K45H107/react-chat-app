@@ -18,8 +18,14 @@ const Chat = () => {
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
 
-  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked, closeChat } =
-    useChatStore();
+  const {
+    chatId,
+    user,
+    isCurrentUserBlocked,
+    isReceiverBlocked,
+    closeChat,
+    toggleDetails,
+  } = useChatStore();
   const { currentUser } = useUserStore();
 
   const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
@@ -157,7 +163,14 @@ const Chat = () => {
         <div className="icons">
           <img src="./phone.png" alt="" />
           <img src="./video.png" alt="" />
-          <img src="./info.png" alt="" />
+          <button
+            type="button"
+            className="iconButton"
+            onClick={toggleDetails}
+            aria-label="Toggle chat details"
+          >
+            <img src="./info.png" alt="" />
+          </button>
         </div>
       </div>
 

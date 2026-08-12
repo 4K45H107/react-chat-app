@@ -12,7 +12,7 @@ import { useChatStore } from "./lib/chatStore";
 const App = () => {
   // Get the current user from zustand userStore
   const { currentUser, isLoading, fetchUserInfo } = useUserStore();
-  const { chatId } = useChatStore();
+  const { chatId, showDetails } = useChatStore();
 
   // Fetch the user info when the app loads
   useEffect(() => {
@@ -38,7 +38,7 @@ const App = () => {
         <>
           <List />
           {chatId && <Chat />}
-          {chatId && <Details />}
+          {chatId && showDetails && <Details />}
         </>
       )}
 
