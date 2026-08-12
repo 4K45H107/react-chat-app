@@ -106,6 +106,35 @@
     font-weight: 300;
     line-height: 1.5;
   }
+
+  .listSkeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 20px 20px;
+  }
+
+  .skeletonItem {
+    height: 72px;
+    border-radius: 10px;
+    background: linear-gradient(
+      90deg,
+      rgba(17, 25, 40, 0.35) 25%,
+      rgba(17, 25, 40, 0.55) 50%,
+      rgba(17, 25, 40, 0.35) 75%
+    );
+    background-size: 200% 100%;
+    animation: chatListShimmer 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes chatListShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* ----------- scroll bar css ------------ */

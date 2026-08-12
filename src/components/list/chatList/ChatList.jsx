@@ -12,11 +12,13 @@ const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState("");
+  const [isLoadingList, setIsLoadingList] = useState(true);
 
   const { currentUser } = useUserStore();
   const { changeChat } = useChatStore();
 
   useEffect(() => {
+    setIsLoadingList(true);
     // Get chats from firestore
     // onSnapshot is a listener that listens for changes to the document
     const unSub = onSnapshot(
@@ -62,6 +64,8 @@ const ChatList = () => {
             error
           );
           toast.error("Failed to load chat list. Please try again.");
+        } finally {
+          setIsLoadingList(false);
         }
       },
       (error) => {
@@ -72,6 +76,7 @@ const ChatList = () => {
           error
         );
         toast.error("Failed to load chat list. Please try again.");
+        setIsLoadingList(false);
       }
     );
 
@@ -117,7 +122,13 @@ const ChatList = () => {
       </div>
 
       {/* ------ ITEMS ------ */}
-      {filteredChats.length === 0 ? (
+      {isLoadingList ? (
+        <div className="listSkeleton" aria-busy="true" aria-label="Loading chats">
+          <div className="skeletonItem" />
+          <div className="skeletonItem" />
+          <div className="skeletonItem" />
+        </div>
+      ) : filteredChats.length === 0 ? (
         <p className="emptyState">
           {searchQuery
             ? "No chats match your search."
