@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./details.css";
 import { toast } from "react-toastify";
-import { arrayUnion, doc, updateDoc } from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
@@ -10,35 +10,50 @@ import { normalizeUser } from "../../lib/normalizeUser";
 const Details = () => {
   const { user, isReceiverBlocked } = useChatStore();
   const { currentUser } = useUserStore();
-  const [isBlocking, setIsBlocking] = useState(false);
+  const [isUpdatingBlock, setIsUpdatingBlock] = useState(false);
 
-  const handleBlock = async () => {
-    if (!user?.id || !currentUser?.id || isReceiverBlocked || isBlocking) return;
+  const handleToggleBlock = async () => {
+    if (!user?.id || !currentUser?.id || isUpdatingBlock) return;
 
-    setIsBlocking(true);
+    setIsUpdatingBlock(true);
     try {
-      await updateDoc(doc(db, "users", currentUser.id), {
-        blocked: arrayUnion(user.id),
-      });
+      if (isReceiverBlocked) {
+        await updateDoc(doc(db, "users", currentUser.id), {
+          blocked: arrayRemove(user.id),
+        });
 
-      useUserStore.setState({
-        currentUser: normalizeUser({
-          ...currentUser,
-          blocked: [...currentUser.blocked, user.id],
-        }),
-      });
-      useChatStore.setState({ isReceiverBlocked: true });
-      toast.success(`Blocked ${user.username}`);
+        useUserStore.setState({
+          currentUser: normalizeUser({
+            ...currentUser,
+            blocked: currentUser.blocked.filter((id) => id !== user.id),
+          }),
+        });
+        useChatStore.setState({ isReceiverBlocked: false });
+        toast.success(`Unblocked ${user.username}`);
+      } else {
+        await updateDoc(doc(db, "users", currentUser.id), {
+          blocked: arrayUnion(user.id),
+        });
+
+        useUserStore.setState({
+          currentUser: normalizeUser({
+            ...currentUser,
+            blocked: [...currentUser.blocked, user.id],
+          }),
+        });
+        useChatStore.setState({ isReceiverBlocked: true });
+        toast.success(`Blocked ${user.username}`);
+      }
     } catch (error) {
       console.error(
-        "[Details] Failed to block user:",
+        "[Details] Failed to update block status:",
         error.code,
         error.message,
         error
       );
-      toast.error("Failed to block user. Please try again.");
+      toast.error("Failed to update block status. Please try again.");
     } finally {
-      setIsBlocking(false);
+      setIsUpdatingBlock(false);
     }
   };
 
@@ -92,17 +107,17 @@ const Details = () => {
           </div>
         </div>
 
-        {/* ----- BLOCK ----- */}
+        {/* ----- BLOCK / UNBLOCK ----- */}
         <button
           className="btn-blk"
           type="button"
-          onClick={handleBlock}
-          disabled={isBlocking || isReceiverBlocked}
+          onClick={handleToggleBlock}
+          disabled={isUpdatingBlock}
         >
-          {isBlocking
-            ? "Blocking..."
+          {isUpdatingBlock
+            ? "Updating..."
             : isReceiverBlocked
-              ? "Blocked"
+              ? "Unblock User"
               : "Block User"}
         </button>
       </div>
