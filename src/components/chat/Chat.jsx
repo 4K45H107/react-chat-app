@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
+import { formatMessageTime } from "../../lib/formatTime";
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
@@ -193,7 +194,7 @@ const Chat = () => {
           >
             <div className="texts">
               <p>{message.text}</p>
-              <span>1 min ago</span>
+              <span>{formatMessageTime(message.createdAt)}</span>
             </div>
           </div>
         ))}
