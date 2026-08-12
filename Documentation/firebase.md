@@ -41,7 +41,24 @@ Rules live in the repo:
 - `firestore.rules`
 - `storage.rules`
 
-There is no `firebase.json` in the repo yet — deploy rules with the Firebase CLI once that config is added.
+There is a `firebase.json` in the repo that points at `firestore.rules` and `storage.rules`.
+
+### Deploy rules (CLI)
+
+```bash
+# One-time: npm i -g firebase-tools && firebase login
+firebase use reactchat-ed5f2   # or select the project when prompted
+firebase deploy --only firestore:rules,storage
+```
+
+Or deploy one service:
+
+```bash
+firebase deploy --only firestore:rules
+firebase deploy --only storage
+```
+
+Rules in git are not live until you deploy them to the Firebase project.
 
 ---
 
