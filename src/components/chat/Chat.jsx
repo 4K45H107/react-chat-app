@@ -219,6 +219,11 @@ const Chat = () => {
               : "You blocked this user."}
           </p>
         )}
+        {!chat?.messages?.length && !isChatBlocked && (
+          <p className="emptyMessages">
+            No messages yet. Say hello to start the conversation.
+          </p>
+        )}
         {chat?.messages?.map((message, index) => (
           <div
             className={`message ${

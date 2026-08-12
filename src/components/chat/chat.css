@@ -113,6 +113,17 @@
       text-align: center;
     }
 
+    .emptyMessages {
+      align-self: center;
+      margin-top: auto;
+      margin-bottom: auto;
+      padding: 12px 20px;
+      color: #a7a7a7;
+      font-size: 14px;
+      font-weight: 300;
+      text-align: center;
+    }
+
     .message {
       max-width: 78%;
       display: flex;

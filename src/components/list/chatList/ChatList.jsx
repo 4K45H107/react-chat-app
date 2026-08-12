@@ -117,19 +117,27 @@ const ChatList = () => {
       </div>
 
       {/* ------ ITEMS ------ */}
-      {filteredChats.map((chat) => (
-        <div
-          className={`item${!chat.isSeen ? " unread" : ""}`}
-          key={chat.chatId}
-          onClick={() => handleSelectChat(chat)}
-        >
-          <img src={chat.user.avatar || "./avatar.png"} alt="" />
-          <div className="texts">
-            <span>{chat.user.username}</span>
-            <p>{chat.lastMessage}</p>
+      {filteredChats.length === 0 ? (
+        <p className="emptyState">
+          {searchQuery
+            ? "No chats match your search."
+            : "No chats yet. Tap + to start one."}
+        </p>
+      ) : (
+        filteredChats.map((chat) => (
+          <div
+            className={`item${!chat.isSeen ? " unread" : ""}`}
+            key={chat.chatId}
+            onClick={() => handleSelectChat(chat)}
+          >
+            <img src={chat.user.avatar || "./avatar.png"} alt="" />
+            <div className="texts">
+              <span>{chat.user.username}</span>
+              <p>{chat.lastMessage}</p>
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
 
       {addMode && <AddUser onClose={() => setAddMode(false)} />}
     </div>
