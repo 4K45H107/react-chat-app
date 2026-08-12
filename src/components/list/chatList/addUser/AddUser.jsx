@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./AddUser.css";
 import { toast } from "react-toastify";
@@ -19,11 +19,14 @@ import { useUserStore } from "../../../../lib/userStore";
 
 const AddUser = ({ onClose }) => {
   const [user, setUser] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
   const { currentUser } = useUserStore();
+  // Sync lock — setState alone cannot stop double-clicks in the same tick
+  const isAddingRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape" && !isAddingRef.current) onClose?.();
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -77,12 +80,15 @@ const AddUser = ({ onClose }) => {
 
   const handleAdd = async () => {
     // Guard: "+" must not run until a user has been found via search
-    if (!user?.id) return;
+    if (!user?.id || isAddingRef.current) return;
 
     if (user.id === currentUser.id) {
       toast.warn("You can't start a chat with yourself.");
       return;
     }
+
+    isAddingRef.current = true;
+    setIsAdding(true);
 
     const chatRef = collection(db, "chats");
     const userChatRef = collection(db, "userChats");
@@ -130,6 +136,7 @@ const AddUser = ({ onClose }) => {
 
       toast.success("Chat created!");
       setUser(null);
+      onClose?.();
     } catch (error) {
       console.error(
         "[AddUser] Failed to create chat:",
@@ -138,12 +145,19 @@ const AddUser = ({ onClose }) => {
         error
       );
       toast.error("Failed to create chat. Please try again.");
+    } finally {
+      isAddingRef.current = false;
+      setIsAdding(false);
     }
   };
 
   return createPortal(
     <>
-      <div className="addUserBackdrop" onClick={onClose} aria-hidden="true" />
+      <div
+        className="addUserBackdrop"
+        onClick={() => !isAdding && onClose?.()}
+        aria-hidden="true"
+      />
       <div
         className="addUser"
         role="dialog"
@@ -155,12 +169,20 @@ const AddUser = ({ onClose }) => {
           type="button"
           onClick={onClose}
           aria-label="Close"
+          disabled={isAdding}
         >
           ×
         </button>
         <form onSubmit={handleUserSearch}>
-          <input type="text" placeholder="Username" name="username" />
-          <button type="submit">Search</button>
+          <input
+            type="text"
+            placeholder="Username"
+            name="username"
+            disabled={isAdding}
+          />
+          <button type="submit" disabled={isAdding}>
+            Search
+          </button>
         </form>
 
         {user && (
@@ -169,8 +191,13 @@ const AddUser = ({ onClose }) => {
               <img src={user.avatar || "./avatar.png"} alt="" />
               <span>{user.username}</span>
             </div>
-            <button type="button" onClick={handleAdd}>
-              +
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={isAdding}
+              aria-busy={isAdding}
+            >
+              {isAdding ? "…" : "+"}
             </button>
           </div>
         )}
