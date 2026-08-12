@@ -1,77 +1,86 @@
-## Critical bugs
-1. Fix `handleSend` in Chat.jsx — updates wrong user's userChats (line 62 uses `currentUser.id` instead of `id`)
-2. Replace hardcoded user info in Chat.jsx and Details.jsx with `chatStore.user`
-3. Fix typo: `creterdAt` → `createdAt` in AddUser.jsx (line 51)
+# Suggestions and backlog
 
-## Missing features
-4. Implement search in ChatList
-5. Implement block user in Details
-6. Implement image/file uploads (UI exists)
-7. Implement message deletion
-8. Implement message editing
-9. Implement typing indicators
-10. Implement online/offline status
-11. Implement read receipts (update `isSeen` when viewing)
-12. Implement message timestamps (format dates)
-13. Implement pagination/infinite scroll for messages
+Status relative to the current codebase (Aug 2026). Fixed items from the old list are noted at the bottom so history is clear.
 
-## Code quality
-14. Add error handling (try-catch with user feedback)
-15. Add loading states (skeletons/spinners)
-16. Add input validation (email format, password strength)
-17. Add form validation (required fields, empty checks)
-18. Standardize CSS file naming (all lowercase or consistent casing)
-19. Add PropTypes or TypeScript for type safety
-20. Extract magic strings/numbers to constants
+---
 
-## Performance
-21. Optimize Firestore queries (add indexes, limit reads)
-22. Implement message pagination (avoid loading all messages)
-23. Add debouncing for search
-24. Memoize expensive computations (useMemo, useCallback)
-25. Optimize image loading (lazy load, compression)
+## Open bugs / data issues
 
-## Security
-26. Add Firestore security rules
-27. Validate user input on backend
-28. Sanitize user input to prevent XSS
-29. Implement rate limiting for messages
-30. Add authentication checks before operations
+1. **Typo on chat create:** `AddUser.jsx` writes `creterdAt` instead of `createdAt`. Rename field (and migrate existing docs if you care about that timestamp).
+2. **Duplicate chats:** Adding the same username again creates another `chats` document. Detect an existing pair before `setDoc`.
+3. **Username uniqueness:** Sign-up does not ensure unique `username`; search returns the first match only.
+4. **Message list keys:** `Chat.jsx` uses `message.createdAt` as React `key` — colliding timestamps can confuse reconciliation; prefer a message id.
+5. **Placeholder timestamps:** Message UI always shows `"1 min ago"` instead of formatting `createdAt`.
 
-## UX
-31. Add message status indicators (sending, sent, delivered, read)
-32. Add empty states (no chats, no messages)
-33. Add smooth transitions/animations
-34. Add keyboard shortcuts (Enter to send, Esc to close)
-35. Add message reactions/emojis
-36. Add message forwarding
-37. Add dark mode toggle
-38. Add responsive design improvements
-39. Add accessibility features (ARIA labels, keyboard navigation)
-40. Add notifications (browser notifications for new messages)
+---
 
-## Architecture
-41. Add error boundary components
-42. Implement proper state management for complex states
-43. Add API layer/service layer abstraction
-44. Add unit tests
-45. Add integration tests
-46. Add E2E tests
-47. Add CI/CD pipeline
-48. Add environment variable validation
-49. Add logging/monitoring
-50. Add code documentation (JSDoc comments)
+## Missing features (high value for chat)
 
-## Data management
-51. Add message caching strategy
-52. Implement offline support (service worker)
-53. Add data export feature
-54. Add chat archiving
-55. Add message search within chats
+6. Chat-list **search/filter** (input exists in `ChatList`).
+7. **Block user:** wire Details button → update both users’ `blocked` arrays in Firestore + `changeBlock` / refetch so flags stay correct.
+8. **Mark as read:** when opening a chat, set own `userChats` entry `isSeen: true`; show unread styling in the list.
+9. **Image / file messages** (composer icons exist; Storage path pattern already used for avatars).
+10. Message **delete** / **edit**.
+11. **Typing** indicators and **online/offline** presence.
+12. **Pagination** / subcollection for messages (array-on-document will hit size/cost limits).
+13. Prevent **self-chat** and clearer empty states (no chats / no messages).
 
-## Additional features
-56. Add group chats
-57. Add voice messages
-58. Add video calls (UI exists)
-59. Add screen sharing
-60. Add chat themes/customization
+---
+
+## Security (rules exist but are broad)
+
+Rules files are in the repo (`firestore.rules`, `storage.rules`) and require auth. Still recommended:
+
+14. Restrict `chats` read/write to conversation participants only.
+15. Restrict `userChats` updates so senders can only patch the relevant chat entry (or move sidebar updates to Cloud Functions).
+16. Storage: only allow writes under paths owned by `request.auth.uid`.
+17. Validate message shape / max length in rules or Functions.
+18. Rate-limit sends (Functions or App Check).
+
+---
+
+## UX polish
+
+19. Real relative/absolute time on messages.
+20. Unread badges and delivery/read indicators.
+21. Keyboard: Enter to send (and keep Shift+Enter for newline if you add multiline).
+22. Loading skeletons for list and thread (beyond global “Loading…”).
+23. Stronger empty states and disabled-state copy.
+24. Browser notifications for new messages (needs FCM or Notification API + permission).
+25. Responsive / a11y pass (ARIA on icon buttons is partly started).
+
+---
+
+## Code quality and architecture
+
+26. Extract Firestore access into a small service layer (auth, users, chats).
+27. Centralize collection/field name constants.
+28. Stronger form validation on Login (email format, password rules, required avatar policy).
+29. Error boundary around the authenticated shell.
+30. TypeScript or JSDoc typedefs for User / ChatMeta / Message.
+31. Unit tests for `normalizeUser`, `changeChat` block logic, and send/sidebar sync helpers.
+32. Add `firebase.json` + documented deploy for rules; keep secrets out of git (API key is expected in Vite client bundles but still rotate if leaked).
+
+---
+
+## Larger product ideas
+
+33. Group chats  
+34. Voice messages / calls (phone & video icons are placeholders)  
+35. Message search inside a thread  
+36. Chat archive / mute  
+37. Offline cache (Firestore persistence is a quick win)  
+38. Themes / customization  
+
+---
+
+## Already fixed (do not re-open unless regressions)
+
+| Was | Now |
+|-----|-----|
+| `handleSend` always updated `currentUser`’s `userChats` | Loops both participant ids correctly |
+| Hardcoded partner in Chat / Details | Uses `chatStore.user` |
+| No Firestore/Storage rules in project | `firestore.rules` + `storage.rules` (auth-gated) |
+| Logout only imagined on Details | `UserInfo` calls `auth.signOut()`; chat store resets on logout |
+| Details always open with chat | `showDetails` + `toggleDetails` |
+| Fragile `blocked` arrays | `normalizeUser` defaults to `[]` |

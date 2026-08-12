@@ -1,304 +1,213 @@
-# Complete Codebase Explanation
+# Codebase overview
 
-## Architecture overview
+React real-time chat app. Firebase handles auth, data, and avatar storage. Zustand holds the signed-in user and the active conversation.
 
-React chat app using Firebase as the backend. Real-time messaging with authentication, chat management, and file uploads.
+For Firebase schemas and rules, see [firebase.md](./firebase.md).  
+For conversation create/send/sync, see [chat-flow.md](./chat-flow.md).  
+For backlog and remaining bugs, see [suggestions.md](./suggestions.md).
 
 ---
 
 ## Tech stack
 
-- Frontend: React 18.3.1 + Vite
-- State management: Zustand
-- Backend: Firebase (Auth, Firestore, Storage)
-- UI: React Toastify, Emoji Picker React
-- Styling: Plain CSS with nesting
+| Layer | Choice |
+|-------|--------|
+| UI | React 18.3 + Vite 5 |
+| State | Zustand 5 |
+| Backend | Firebase 11 (Auth, Firestore, Storage) |
+| UX helpers | react-toastify, emoji-picker-react |
+| Styles | Plain CSS (per-component files) |
 
 ---
 
-## Firebase data structure
+## Repository layout
 
-### Collections:
-
-1. `users` (Firestore)
-   ```javascript
-   {
-     id: "user_uid",
-     username: "John Doe",
-     email: "john@example.com",
-     avatar: "https://...",
-     blocked: [] // Array of user IDs
-   }
-   ```
-
-2. `userChats` (Firestore)
-   ```javascript
-   {
-     chats: [
-       {
-         chatId: "chat_123",
-         receiverId: "other_user_id",
-         lastMessage: "Hello!",
-         updatedAt: 1234567890,
-         isSeen: false
-       }
-     ]
-   }
-   ```
-
-3. `chats` (Firestore)
-   ```javascript
-   {
-     createdAt: Timestamp,
-     messages: [
-       {
-         senderId: "user_id",
-         text: "Hello!",
-         createdAt: Date
-       }
-     ]
-   }
-   ```
-
-4. `images/` (Storage)
-   - User avatars stored as: `images/{timestamp}{filename}`
+```
+src/
+  App.jsx                 # Auth gate + layout shell
+  main.jsx                # React entry
+  lib/
+    firebase.js           # Firebase app, db, auth, storage
+    upload.js             # Avatar upload to Storage
+    normalizeUser.js      # Ensures user.blocked is always an array
+    userStore.js          # currentUser + fetchUserInfo
+    chatStore.js          # active chat, block flags, details panel
+  components/
+    login/Login.jsx       # Sign in / sign up
+    list/
+      List.jsx            # Sidebar shell
+      userInfo/UserInfo.jsx   # Avatar, name, logout
+      chatList/
+        ChatList.jsx      # Real-time chat list + search UI stub
+        addUser/AddUser.jsx   # Username search + create chat
+    chat/Chat.jsx         # Message thread + composer
+    details/Details.jsx   # Partner info panel (toggle)
+    notification/Notification.jsx  # Toast host
+firestore.rules
+storage.rules
+Documentation/            # Product docs (this folder)
+```
 
 ---
 
 ## Component hierarchy
 
 ```
-App.jsx (Root)
-├── Login.jsx (if not authenticated)
-└── Main Layout (if authenticated)
-    ├── List.jsx (Sidebar)
-    │   ├── UserInfo.jsx (Current user info)
-    │   └── ChatList.jsx (List of chats)
-    │       └── AddUser.jsx (Search & add users)
-    ├── Chat.jsx (Chat interface - shown when chatId exists)
-    └── Details.jsx (User details panel - shown when chatId exists)
-└── Notification.jsx (Toast notifications - always rendered)
+App.jsx
+├── Loading…                    (userStore.isLoading)
+├── Login                       (!currentUser)
+└── Authenticated shell         (currentUser)
+    ├── List
+    │   ├── UserInfo            (logout lives here)
+    │   └── ChatList
+    │       └── AddUser         (portal modal when addMode)
+    ├── Chat                    (when chatId)
+    └── Details                 (when chatId && showDetails)
+└── Notification                (always)
 ```
+
+`App` adds class `chat-open` on the container when a chat is selected (used for mobile layout).
 
 ---
 
-## State management (Zustand stores)
+## State management (Zustand)
 
-### 1. `userStore.js` — Current user state
-```javascript
-{
-  currentUser: null,        // Full user object from Firestore
-  isLoading: true,          // Loading state
-  fetchUserInfo(uid)        // Fetches user from Firestore
-}
-```
+### `userStore` (`src/lib/userStore.js`)
 
-### 2. `chatStore.js` — Active chat state
-```javascript
-{
-  chatId: null,             // Current chat ID
-  user: null,               // Other user in chat
-  isCurrentUserBlocked: false,
-  isReceiverBlocked: false,
-  changeChat(chatId, user)  // Sets active chat + checks blocking
-  changeBlock()             // Toggles block status
-}
-```
+| Field / action | Role |
+|----------------|------|
+| `currentUser` | Normalized Firestore user profile |
+| `isLoading` | True until first auth resolution |
+| `fetchUserInfo(uid)` | Loads `users/{uid}`; clears user if missing/error |
 
----
+### `chatStore` (`src/lib/chatStore.js`)
 
-## Application flow
+| Field / action | Role |
+|----------------|------|
+| `chatId` | Active conversation id |
+| `user` | Chat partner profile |
+| `isCurrentUserBlocked` | Partner has blocked me |
+| `isReceiverBlocked` | I blocked partner |
+| `showDetails` | Details panel visibility |
+| `changeChat(chatId, user)` | Open chat; compute block flags; details closed |
+| `changeBlock()` | Flip local `isReceiverBlocked` only (no Firestore write yet) |
+| `toggleDetails()` | Show/hide Details |
+| `closeChat()` / `resetChat()` | Clear chat state (back button / logout) |
 
-### Phase 1: Initialization (`main.jsx` → `App.jsx`)
-
-1. App mounts
-2. `App.jsx` sets up `onAuthStateChanged` listener
-3. On auth change:
-   - If user exists → calls `fetchUserInfo(uid)`
-   - If no user → sets `currentUser = null`
-
-### Phase 2: Authentication (`Login.jsx`)
-
-#### Sign In:
-```javascript
-1. User enters email/password
-2. signInWithEmailAndPassword() → Firebase Auth
-3. onAuthStateChanged triggers → fetchUserInfo() → App shows main UI
-```
-
-#### Sign Up:
-```javascript
-1. User enters username, email, password, avatar
-2. createUserWithEmailAndPassword() → Creates auth user
-3. upload(avatar) → Uploads to Firebase Storage → Returns URL
-4. setDoc("users", uid) → Creates user document in Firestore
-5. setDoc("userChats", uid) → Creates empty chat list
-6. User is automatically signed in → App shows main UI
-```
-
-### Phase 3: Main application
-
-#### A. List component (`List.jsx`)
-- Renders `UserInfo` (current user) and `ChatList` (chats)
-
-#### B. UserInfo component (`UserInfo.jsx`)
-- Displays current user avatar and username from `userStore`
-
-#### C. ChatList component (`ChatList.jsx`)
-```javascript
-1. useEffect sets up onSnapshot listener on "userChats/{currentUser.id}"
-2. When chats change:
-   - Maps through chats array
-   - Fetches receiver user info from "users" collection
-   - Sorts by updatedAt (newest first)
-   - Updates local state
-3. User clicks a chat → calls changeChat(chatId, user)
-4. Shows AddUser component when addMode is true
-```
-
-#### D. AddUser component (`AddUser.jsx`)
-```javascript
-1. User searches by username → Query Firestore "users" collection
-2. Shows found user
-3. User clicks "+" → handleAdd():
-   - Creates new chat document in "chats" collection
-   - Updates both users' "userChats" with new chat entry
-   - Chat appears in both users' chat lists
-```
-
-#### E. Chat component (`Chat.jsx`)
-```javascript
-1. Only renders when chatId exists (from chatStore)
-2. useEffect sets up onSnapshot on "chats/{chatId}"
-3. Real-time updates when messages change
-4. handleSend():
-   - Adds message to "chats/{chatId}.messages" array
-   - Updates both users' "userChats" with:
-     - lastMessage
-     - updatedAt
-     - isSeen (true for sender, false for receiver)
-5. Emoji picker integration
-6. Auto-scrolls to bottom on new messages
-```
-
-#### F. Details component (`Details.jsx`)
-- Shows user details panel
-- Logout button → `auth.signOut()` → Returns to Login
+Blocking checks use `normalizeUser` so missing `blocked` fields cannot crash `.includes()`.
 
 ---
 
-## Data flow diagram
+## Application lifecycle
+
+### 1. Boot (`App.jsx`)
+
+1. Subscribe to `onAuthStateChanged`.
+2. If no auth user → `resetChat()` + `fetchUserInfo(undefined)` → Login.
+3. If auth user → `fetchUserInfo(uid)` → main UI when profile exists.
+4. Auth user without a Firestore `users` doc → treated as logged out (`currentUser = null`).
+
+### 2. Auth (`Login.jsx`)
+
+**Sign in:** email/password → Auth session → boot path above.
+
+**Sign up:**
+
+1. `createUserWithEmailAndPassword`
+2. Optional avatar → Storage (`upload.js`)
+3. `users/{uid}` document
+4. `userChats/{uid}` with `{ chats: [] }`
+5. Toast success (user is already signed in by Auth)
+
+UI toggles between sign-in and sign-up in one component (`mode` state).
+
+### 3. Sidebar
+
+- **UserInfo:** shows `currentUser`; **Log Out** calls `auth.signOut()`.
+- **ChatList:** `onSnapshot` on `userChats/{currentUser.id}`, joins each `receiverId` to `users`, sorts by `updatedAt`.
+- **AddUser:** portal dialog; search by exact username; creates `chats` + both `userChats` entries.
+
+### 4. Conversation
+
+- Selecting a list item → `changeChat` → `Chat` mounts.
+- `Chat` listens to `chats/{chatId}`, sends via `arrayUnion` + sidebar sync for both users.
+- Composer disabled when either block flag is true.
+- Info icon → `toggleDetails` → `Details` shows partner from `chatStore.user`.
+- Back button → `closeChat` (clears `chatId` for mobile list-first UI).
+
+---
+
+## Data flow (high level)
 
 ```
-┌─────────────┐
-│   User      │
-│  Action     │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
-│  React Component│────▶│ Zustand Store│────▶│  Firebase   │
-│                 │◀────│              │◀────│             │
-└─────────────────┘     └──────────────┘     └─────────────┘
-       │                        │                     │
-       │                        │                     │
-       ▼                        ▼                     ▼
-┌─────────────┐         ┌──────────────┐     ┌─────────────┐
-│     UI      │         │  State      │     │  Database   │
-│   Updates   │         │  Updates    │     │  Updates    │
-└─────────────┘         └──────────────┘     └─────────────┘
+User action
+    → React component
+        → Zustand (optional) and/or Firestore/Auth/Storage
+            → onSnapshot / store update
+                → UI re-render
 ```
 
----
+Real-time paths:
 
-## Key features
-
-### 1. Real-time updates
-- `onSnapshot` listeners on Firestore documents
-- Chat list and messages update automatically
-
-### 2. User blocking
-- `changeChat()` checks if either user is blocked
-- Blocks chat if blocked
-
-### 3. Last message tracking
-- Updates `lastMessage` and `updatedAt` in `userChats`
-- Chat list sorted by `updatedAt`
-
-### 4. Image uploads
-- `upload.js` handles Firebase Storage uploads
-- Progress tracking via `uploadBytesResumable`
-- Returns download URL
-
-### 5. Authentication persistence
-- `onAuthStateChanged` maintains session
-- User stays logged in on refresh
+- Chat list: `userChats/{me}`
+- Messages: `chats/{chatId}`
 
 ---
 
-## User journey
+## Features that work today
 
-1. First visit → Login screen
-2. Sign up → Creates account → Auto-login → Main app
-3. Main app → See chat list (empty initially)
-4. Add user → Search username → Add → Chat created
-5. Select chat → Chat interface opens
-6. Send message → Real-time update → Both users see it
-7. Logout → Returns to Login
+- Email/password auth + session persistence
+- Avatar upload on sign-up
+- Username search and 1:1 chat creation
+- Real-time chat list and messages
+- Last-message preview + sort by `updatedAt`
+- Emoji picker in composer
+- Block-aware UI (flags from `blocked` arrays; send disabled)
+- Details panel toggle; logout from sidebar
+- Toast errors/success on main failure paths
+- Firestore + Storage security rules in repo (signed-in only)
 
 ---
 
-## Important code patterns
+## Not implemented (UI often present)
 
-### 1. Real-time listeners cleanup
+- Chat-list text search
+- Block user button writing to Firestore
+- Image / camera / mic / phone / video actions
+- Unread badges / mark-as-read when opening a chat
+- Real message timestamps (UI shows placeholder “1 min ago”)
+- Shared photos/files in Details
+
+See [suggestions.md](./suggestions.md) for the prioritized backlog.
+
+---
+
+## Patterns worth copying
+
+**Listener cleanup**
+
 ```javascript
 useEffect(() => {
   const unSub = onSnapshot(...);
-  return () => unSub(); // Cleanup on unmount
-}, [dependencies]);
+  return () => unSub();
+}, [deps]);
 ```
 
-### 2. Zustand store access
+**Zustand outside React** (auth logout / `changeChat`):
+
 ```javascript
-// In component
-const { currentUser } = useUserStore();
-
-// Outside component (in chatStore)
-const currentUser = useUserStore.getState().currentUser;
+useChatStore.getState().resetChat();
+useUserStore.getState().currentUser;
 ```
 
-### 3. Firestore array updates
+**Safe user shape**
+
 ```javascript
-// Add to array
-updateDoc(docRef, {
-  chats: arrayUnion(newChat)
-});
-
-// Update array element
-const updatedChats = [...chats];
-updatedChats[index].lastMessage = text;
-updateDoc(docRef, { chats: updatedChats });
+normalizeUser(doc.data()); // blocked: [] if missing
 ```
-
----
-
-## Potential issues/improvements
-
-1. Chat.jsx line 62: Uses `currentUser.id` instead of `id` in loop
-2. Details.jsx: Hardcoded user info (should use `chatStore.user`)
-3. Chat.jsx: Hardcoded user info in top bar (should use `chatStore.user`)
-4. Search: Not implemented (UI only)
-5. Image messages: UI exists but not implemented
-6. Block user: Button exists but not implemented
 
 ---
 
 ## Summary
 
-- Firebase handles backend (Auth, Firestore, Storage)
-- Zustand manages global state
-- Real-time updates via Firestore listeners
-- Component-based React UI
-- Modular structure for easy extension
-
-The app follows a standard real-time chat pattern with Firebase as the backend and React for the frontend.
+Small, feature-focused codebase: Auth gates the shell; `userChats` drives the sidebar; `chats` drives the thread; Zustand only tracks who you are and which conversation is open. Extend Firebase and chat-flow docs when you change those layers.

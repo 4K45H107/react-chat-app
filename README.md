@@ -1,8 +1,32 @@
-# React + Vite
+# React chat app
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Real-time 1:1 messaging with React, Vite, Zustand, and Firebase (Auth, Firestore, Storage).
 
-Currently, two official plugins are available:
+## Docs
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Start here: [Documentation/README.md](./Documentation/README.md)
+
+| Doc | Contents |
+|-----|----------|
+| [documentation.md](./Documentation/documentation.md) | Full codebase overview |
+| [firebase.md](./Documentation/firebase.md) | Firebase services, schemas, rules |
+| [chat-flow.md](./Documentation/chat-flow.md) | Chat create / list / send flows |
+| [suggestions.md](./Documentation/suggestions.md) | Backlog and open issues |
+
+## Setup
+
+```bash
+npm install
+```
+
+Create a `.env` with your Firebase web API key:
+
+```bash
+VITE_API_KEY=<your-key>
+```
+
+```bash
+npm run dev
+```
+
+Other scripts: `npm run build`, `npm run preview`, `npm run lint`.
