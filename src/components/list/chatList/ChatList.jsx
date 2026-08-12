@@ -11,6 +11,7 @@ import { normalizeUser } from "../../../lib/normalizeUser";
 const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
   const [chats, setChats] = useState([]);
+  const [search, setSearch] = useState("");
 
   const { currentUser } = useUserStore();
   const { changeChat } = useChatStore();
@@ -82,13 +83,30 @@ const ChatList = () => {
     changeChat(chat.chatId, chat.user);
   };
 
+  const searchQuery = search.trim().toLowerCase();
+  const filteredChats = searchQuery
+    ? chats.filter((chat) => {
+        const username = chat.user?.username?.toLowerCase() ?? "";
+        const lastMessage = chat.lastMessage?.toLowerCase() ?? "";
+        return (
+          username.includes(searchQuery) || lastMessage.includes(searchQuery)
+        );
+      })
+    : chats;
+
   return (
     <div className="chatList">
       {/* ------ SEARCH ------ */}
       <div className="search">
         <div className="searchBar">
           <img src="./search.png" alt="" />
-          <input type="text" placeholder="Search" />
+          <input
+            type="text"
+            placeholder="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search chats"
+          />
         </div>
         <img
           src={!addMode ? "./plus.png" : "./minus.png"}
@@ -99,7 +117,7 @@ const ChatList = () => {
       </div>
 
       {/* ------ ITEMS ------ */}
-      {chats.map((chat) => (
+      {filteredChats.map((chat) => (
         <div
           className="item"
           key={chat.chatId}
