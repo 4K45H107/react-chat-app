@@ -119,7 +119,7 @@ const ChatList = () => {
       {/* ------ ITEMS ------ */}
       {filteredChats.map((chat) => (
         <div
-          className="item"
+          className={`item${!chat.isSeen ? " unread" : ""}`}
           key={chat.chatId}
           onClick={() => handleSelectChat(chat)}
         >

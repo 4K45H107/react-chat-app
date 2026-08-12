@@ -78,6 +78,22 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        color: #a7a7a7;
+      }
+    }
+
+    &.unread {
+      background-color: rgb(17, 25, 40, 0.35);
+
+      .texts {
+        span {
+          font-weight: 700;
+        }
+
+        p {
+          font-weight: 500;
+          color: #e8e8e8;
+        }
       }
     }
   }
