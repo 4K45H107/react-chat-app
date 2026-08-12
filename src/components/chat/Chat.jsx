@@ -59,6 +59,34 @@ const Chat = () => {
     return () => unsub();
   }, [chatId]);
 
+  // Mark this conversation as seen in the current user's sidebar
+  useEffect(() => {
+    if (!chatId || !currentUser?.id) return;
+
+    const markAsSeen = async () => {
+      try {
+        const userChatsRef = doc(db, "userChats", currentUser.id);
+        const snap = await getDoc(userChatsRef);
+        if (!snap.exists()) return;
+
+        const chats = [...(snap.data().chats ?? [])];
+        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
+        if (chatIndex === -1 || chats[chatIndex].isSeen) return;
+
+        chats[chatIndex] = { ...chats[chatIndex], isSeen: true };
+        await updateDoc(userChatsRef, { chats });
+      } catch (error) {
+        console.warn(
+          "[Chat] Failed to mark chat as seen:",
+          error.code,
+          error.message
+        );
+      }
+    };
+
+    markAsSeen();
+  }, [chatId, currentUser?.id]);
+
   // Close emoji picker when clicking outside the picker/toggle
   useEffect(() => {
     if (!openEmoji) return;
