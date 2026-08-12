@@ -280,6 +280,20 @@ const Chat = () => {
             key={message.id ?? `${message.senderId}-${index}`}
           >
             <div className="texts">
+              {message.img ? (
+                <a
+                  className="messageImageLink"
+                  href={message.img}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    className="messageImage"
+                    src={message.img}
+                    alt={message.text || "Shared image"}
+                  />
+                </a>
+              ) : null}
               {message.text ? <p>{message.text}</p> : null}
               <span>{formatMessageTime(message.createdAt)}</span>
             </div>
