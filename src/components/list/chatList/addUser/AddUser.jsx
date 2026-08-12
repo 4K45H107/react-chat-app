@@ -33,7 +33,13 @@ const AddUser = ({ onClose }) => {
     e.preventDefault();
 
     const formData = new FormData(e.target);
-    const username = formData.get("username");
+    const username = String(formData.get("username") ?? "").trim();
+
+    if (!username) {
+      setUser(null);
+      toast.warn("Please enter a username to search.");
+      return;
+    }
 
     try {
       const userRef = collection(db, "users");
@@ -43,8 +49,17 @@ const AddUser = ({ onClose }) => {
       const querySnapShot = await getDocs(q);
 
       if (!querySnapShot.empty) {
-        setUser(querySnapShot.docs[0].data());
+        const foundUser = querySnapShot.docs[0].data();
+
+        if (foundUser.id === currentUser.id) {
+          setUser(null);
+          toast.warn("You can't start a chat with yourself.");
+          return;
+        }
+
+        setUser(foundUser);
       } else {
+        setUser(null);
         console.warn("[AddUser] No user found for username:", username);
         toast.warn(`No user found with username "${username}"`);
       }
@@ -62,6 +77,11 @@ const AddUser = ({ onClose }) => {
   const handleAdd = async () => {
     // Guard: "+" must not run until a user has been found via search
     if (!user?.id) return;
+
+    if (user.id === currentUser.id) {
+      toast.warn("You can't start a chat with yourself.");
+      return;
+    }
 
     const chatRef = collection(db, "chats");
     const userChatRef = collection(db, "userChats");
