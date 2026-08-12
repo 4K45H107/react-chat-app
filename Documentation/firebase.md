@@ -104,9 +104,10 @@ Shared conversation document. ID is auto-generated (`doc(collection(db, "chats")
 
 ```javascript
 {
-  creterdAt: Timestamp,   // typo in code — should be createdAt (see suggestions)
+  createdAt: Timestamp,   // serverTimestamp() on create
   messages: [
     {
+      id: "uuid",           // crypto.randomUUID() on send (older msgs may lack id)
       senderId: "user_uid",
       text: "Hello!",
       createdAt: Date        // client Date; stored as Timestamp in Firestore
@@ -207,7 +208,7 @@ These stop anonymous access but are still loose: any signed-in user can read all
 | `onSnapshot(doc(...))` | Chat list + open conversation (real-time) |
 | `arrayUnion` | New chat metadata; new messages |
 | `getDoc` / `getDocs` + `query` / `where` | Receiver profiles; username search |
-| `serverTimestamp()` | Chat create time (field currently misspelled `creterdAt`) |
+| `serverTimestamp()` | Chat create time (`createdAt`) |
 | `uploadBytesResumable` | Avatar upload |
 
 ---
@@ -225,12 +226,13 @@ No composite indexes are required for the current code. Add indexes if you later
 
 ## Quirks and limits to know
 
-1. **Typo:** new chats write `creterdAt`, not `createdAt`. App does not read that field today.
-2. **Messages as arrays:** whole message list is rewritten/unioned on one document — cost and size grow with history.
-3. **`isSeen`:** written on send; UI does not show unread badges or mark read on open.
-4. **Username uniqueness:** search is exact match only; sign-up does not enforce unique usernames.
-5. **Duplicate chats:** adding the same user twice creates another `chats` doc (no “already chatting” check).
-6. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
+1. **Messages as arrays:** whole message list is unioned on one document — cost and size grow with history.
+2. **`isSeen`:** written on send; UI does not show unread badges or mark read on open.
+3. **Username uniqueness:** search is exact match only; sign-up does not enforce unique usernames.
+4. **Legacy chat docs:** older documents may still have misspelled `creterdAt` or messages without `id` (UI falls back for keys).
+5. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
+
+Duplicate 1:1 chats are blocked in the client (existing `receiverId` check + sync create lock). Not enforced in security rules.
 
 ---
 
@@ -240,6 +242,7 @@ No composite indexes are required for the current code. Add indexes if you later
 |------|------|
 | `src/lib/firebase.js` | Init + exports |
 | `src/lib/upload.js` | Storage helper |
+| `src/lib/formatTime.js` | Relative/absolute message timestamps |
 | `src/lib/userStore.js` | Load `users/{uid}` |
 | `src/lib/chatStore.js` | Active chat + block flags (client-side) |
 | `src/components/login/Login.jsx` | Auth + initial Firestore docs |

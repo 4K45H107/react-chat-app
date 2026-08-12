@@ -11,7 +11,8 @@ Start here: [Documentation/README.md](./Documentation/README.md)
 | [documentation.md](./Documentation/documentation.md) | Full codebase overview |
 | [firebase.md](./Documentation/firebase.md) | Firebase services, schemas, rules |
 | [chat-flow.md](./Documentation/chat-flow.md) | Chat create / list / send flows |
-| [suggestions.md](./Documentation/suggestions.md) | Backlog and open issues |
+| [checklist.md](./Documentation/checklist.md) | Priority + timeline checklist |
+| [suggestions.md](./Documentation/suggestions.md) | Full backlog |
 
 ## Setup
 

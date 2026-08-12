@@ -29,6 +29,7 @@ src/
   lib/
     firebase.js           # Firebase app, db, auth, storage
     upload.js             # Avatar upload to Storage
+    formatTime.js         # Message timestamp formatting
     normalizeUser.js      # Ensures user.blocked is always an array
     userStore.js          # currentUser + fetchUserInfo
     chatStore.js          # active chat, block flags, details panel
@@ -158,9 +159,10 @@ Real-time paths:
 
 - Email/password auth + session persistence
 - Avatar upload on sign-up
-- Username search and 1:1 chat creation
+- Username search and 1:1 chat creation (no self-chat; no duplicate pair; create locked against double-clicks)
 - Real-time chat list and messages
 - Last-message preview + sort by `updatedAt`
+- Message ids, relative timestamps, Enter to send
 - Emoji picker in composer
 - Block-aware UI (flags from `blocked` arrays; send disabled)
 - Details panel toggle; logout from sidebar
@@ -175,8 +177,8 @@ Real-time paths:
 - Block user button writing to Firestore
 - Image / camera / mic / phone / video actions
 - Unread badges / mark-as-read when opening a chat
-- Real message timestamps (UI shows placeholder “1 min ago”)
 - Shared photos/files in Details
+- Empty-state copy for no chats / no messages
 
 See [suggestions.md](./suggestions.md) for the prioritized backlog.
 

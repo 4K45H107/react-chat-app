@@ -26,17 +26,18 @@ Alice adds Bob
 
 Triggered after an exact username search and clicking **+**.
 
-1. Create `chats/{newId}` with empty `messages` (and `creterdAt` — typo; see suggestions).
-2. `arrayUnion` onto **receiver’s** `userChats`: `receiverId = currentUser.id`.
-3. `arrayUnion` onto **current user’s** `userChats`: `receiverId = other user’s id`.
-4. Toast success; both clients’ `ChatList` snapshots refresh.
+1. Reject empty username; reject searching/adding yourself.
+2. Read own `userChats` — if an entry already has this `receiverId`, toast and stop.
+3. Create `chats/{newId}` with `createdAt: serverTimestamp()` and empty `messages`.
+4. `arrayUnion` onto **receiver’s** `userChats`: `receiverId = currentUser.id`.
+5. `arrayUnion` onto **current user’s** `userChats`: `receiverId = other user’s id`.
+6. Toast success; close modal; both clients’ `ChatList` snapshots refresh.
 
 Guards:
 
 - `handleAdd` no-ops if search has not produced a user (`!user?.id`).
-- Escape / backdrop / × close the modal (`onClose` from `ChatList`).
-
-No check yet for “chat with this user already exists” — duplicate adds create extra threads.
+- Sync `isAddingRef` + disabled **+** button while create is in flight (stops rapid double-click races).
+- Escape / backdrop / × close the modal (`onClose` from `ChatList`), blocked while adding.
 
 ---
 
@@ -81,12 +82,15 @@ Skipped if text empty, no partner, or either block flag is set.
 ```javascript
 await updateDoc(doc(db, "chats", chatId), {
   messages: arrayUnion({
+    id: crypto.randomUUID(),
     senderId: currentUser.id,
     text,
     createdAt: new Date(),
   }),
 });
 ```
+
+Composer: **Enter** sends; **Shift+Enter** reserved for future multiline. Bubbles show `formatMessageTime(createdAt)` (`src/lib/formatTime.js`). React keys use `message.id` when present.
 
 **Step B — both sidebars**
 
