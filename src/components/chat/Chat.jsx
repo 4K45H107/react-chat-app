@@ -138,6 +138,12 @@ const Chat = () => {
     }
   };
 
+  const handleComposerKeyDown = (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    handleSend();
+  };
+
   return (
     <div className="chat">
       {/* ------ TOP ------ */}
@@ -214,6 +220,7 @@ const Chat = () => {
             isChatBlocked ? "Messaging unavailable" : "Type a message..."
           }
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleComposerKeyDown}
           disabled={isChatBlocked}
         />
         <div className="emoji" ref={emojiRef}>
