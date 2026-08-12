@@ -9,6 +9,29 @@ import { auth, db } from "../../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import upload from "../../lib/upload";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+const MIN_USERNAME_LENGTH = 3;
+
+const authErrorMessage = (error) => {
+  switch (error.code) {
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Incorrect email or password.";
+    case "auth/email-already-in-use":
+      return "An account with this email already exists.";
+    case "auth/weak-password":
+      return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    case "auth/too-many-requests":
+      return "Too many attempts. Please try again later.";
+    default:
+      return error.message || "Something went wrong. Please try again.";
+  }
+};
+
 const Login = () => {
   const [mode, setMode] = useState("signin");
   const [avatar, setAvatar] = useState({ file: null, url: "" });
@@ -26,10 +49,22 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
     const formData = new FormData(e.target);
-    const { email, password } = Object.fromEntries(formData);
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    if (!email || !password) {
+      toast.warn("Email and password are required.");
+      return;
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      toast.warn("Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -40,7 +75,7 @@ const Login = () => {
         error.message,
         error
       );
-      toast.error(error.message);
+      toast.error(authErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -48,10 +83,37 @@ const Login = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
     const formData = new FormData(e.target);
-    const { username, email, password } = Object.fromEntries(formData);
+    const username = String(formData.get("username") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    if (!username || !email || !password) {
+      toast.warn("Username, email, and password are required.");
+      return;
+    }
+
+    if (username.length < MIN_USERNAME_LENGTH) {
+      toast.warn(
+        `Username must be at least ${MIN_USERNAME_LENGTH} characters.`
+      );
+      return;
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      toast.warn("Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      toast.warn(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`
+      );
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const user = await createUserWithEmailAndPassword(auth, email, password);
@@ -77,7 +139,7 @@ const Login = () => {
         error.message,
         error
       );
-      toast.error(error.message);
+      toast.error(authErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -93,16 +155,18 @@ const Login = () => {
         {isSignIn ? (
           <form onSubmit={handleLogin}>
             <input
-              type="text"
+              type="email"
               placeholder="Email"
               className="email"
               name="email"
+              autoComplete="email"
             />
             <input
               type="password"
               placeholder="Password"
               className="password"
               name="password"
+              autoComplete="current-password"
             />
             <button disabled={loading}>
               {loading ? "Loading..." : "Sign In"}
@@ -115,18 +179,21 @@ const Login = () => {
               placeholder="Username"
               className="username"
               name="username"
+              autoComplete="username"
             />
             <input
-              type="text"
+              type="email"
               placeholder="Email"
               className="email"
               name="email"
+              autoComplete="email"
             />
             <input
               type="password"
               placeholder="Password"
               className="password"
               name="password"
+              autoComplete="new-password"
             />
             <label htmlFor="file">
               <img src={avatar.file ? avatar.url : "./avatar.png"} alt="" />
