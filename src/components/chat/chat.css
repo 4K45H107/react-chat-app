@@ -195,6 +195,17 @@
       display: flex;
       align-items: center;
       gap: 20px;
+
+      .attachImage {
+        display: flex;
+        cursor: pointer;
+
+        &.disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          pointer-events: none;
+        }
+      }
     }
 
     input {

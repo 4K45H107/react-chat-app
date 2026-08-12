@@ -13,11 +13,13 @@ import {
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
+import upload from "../../lib/upload";
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState("");
   const [chat, setChat] = useState([]);
+  const [isSending, setIsSending] = useState(false);
 
   const {
     chatId,
@@ -33,6 +35,7 @@ const Chat = () => {
 
   const endRef = useRef(null);
   const emojiRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   // Scroll to the latest message whenever the message list updates
   // (new incoming message, own send via snapshot, or opening a chat)
@@ -107,11 +110,43 @@ const Chat = () => {
     setOpenEmoji(false);
   };
 
-  const handleSend = async () => {
-    if (text === "" || !user || isChatBlocked) return;
+  const syncSidebarPreview = async (preview) => {
+    const participantIds = [currentUser.id, user.id];
 
+    for (const participantId of participantIds) {
+      try {
+        const userChatsRef = doc(db, "userChats", participantId);
+        const userChatsSnapshot = await getDoc(userChatsRef);
+
+        if (!userChatsSnapshot.exists()) continue;
+
+        const userChatsData = userChatsSnapshot.data();
+        const chats = userChatsData.chats ?? [];
+        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
+
+        if (chatIndex === -1) continue;
+
+        chats[chatIndex].lastMessage = preview;
+        chats[chatIndex].isSeen = participantId === currentUser.id;
+        chats[chatIndex].updatedAt = Date.now();
+
+        await updateDoc(userChatsRef, { chats });
+      } catch (sidebarError) {
+        console.warn(
+          "[Chat] Failed to sync sidebar for participant:",
+          participantId,
+          sidebarError.code,
+          sidebarError.message
+        );
+      }
+    }
+  };
+
+  const handleSend = async () => {
+    if (text === "" || !user || isChatBlocked || isSending) return;
+
+    setIsSending(true);
     try {
-      // 1. Append the new message to the shared chat document
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
           id: crypto.randomUUID(),
@@ -121,39 +156,7 @@ const Chat = () => {
         }),
       });
 
-      // 2. Update each participant's userChats sidebar entry.
-      //    Both the sender and receiver need their own userChats doc updated
-      //    so lastMessage, isSeen, and updatedAt stay in sync on both sides.
-      const participantIds = [currentUser.id, user.id];
-
-      for (const participantId of participantIds) {
-        try {
-          const userChatsRef = doc(db, "userChats", participantId);
-          const userChatsSnapshot = await getDoc(userChatsRef);
-
-          if (!userChatsSnapshot.exists()) continue;
-
-          const userChatsData = userChatsSnapshot.data();
-          const chats = userChatsData.chats ?? [];
-          const chatIndex = chats.findIndex((c) => c.chatId === chatId);
-
-          if (chatIndex === -1) continue;
-
-          chats[chatIndex].lastMessage = text;
-          chats[chatIndex].isSeen = participantId === currentUser.id;
-          chats[chatIndex].updatedAt = Date.now();
-
-          await updateDoc(userChatsRef, { chats });
-        } catch (sidebarError) {
-          console.warn(
-            "[Chat] Failed to sync sidebar for participant:",
-            participantId,
-            sidebarError.code,
-            sidebarError.message
-          );
-        }
-      }
-
+      await syncSidebarPreview(text);
       setText("");
     } catch (error) {
       console.error(
@@ -163,6 +166,51 @@ const Chat = () => {
         error
       );
       toast.error("Failed to send message. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !user || isChatBlocked || isSending) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.warn("Please choose an image file.");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const imgUrl = await upload(file);
+      if (!imgUrl) {
+        toast.error("Failed to upload image. Please try again.");
+        return;
+      }
+
+      const caption = text.trim();
+      await updateDoc(doc(db, "chats", chatId), {
+        messages: arrayUnion({
+          id: crypto.randomUUID(),
+          senderId: currentUser.id,
+          text: caption,
+          img: imgUrl,
+          createdAt: new Date(),
+        }),
+      });
+
+      await syncSidebarPreview(caption || "Photo");
+      setText("");
+    } catch (error) {
+      console.error(
+        "[Chat] Failed to send image:",
+        error.code || error,
+        error.message || error
+      );
+      toast.error("Failed to send image. Please try again.");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -232,7 +280,7 @@ const Chat = () => {
             key={message.id ?? `${message.senderId}-${index}`}
           >
             <div className="texts">
-              <p>{message.text}</p>
+              {message.text ? <p>{message.text}</p> : null}
               <span>{formatMessageTime(message.createdAt)}</span>
             </div>
           </div>
@@ -242,7 +290,20 @@ const Chat = () => {
       {/* Disable composer when either party has blocked the other */}
       <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
         <div className="icons">
-          <img src="./img.png" alt="" />
+          <label
+            className={`attachImage${isChatBlocked || isSending ? " disabled" : ""}`}
+            aria-label="Send an image"
+          >
+            <img src="./img.png" alt="" />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              disabled={isChatBlocked || isSending}
+              onChange={handleImageSelect}
+            />
+          </label>
           <img src="./camera.png" alt="" />
           <img src="./mic.png" alt="" />
         </div>
@@ -250,17 +311,23 @@ const Chat = () => {
           type="text"
           value={text || ""}
           placeholder={
-            isChatBlocked ? "Messaging unavailable" : "Type a message..."
+            isChatBlocked
+              ? "Messaging unavailable"
+              : isSending
+                ? "Sending..."
+                : "Type a message..."
           }
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleComposerKeyDown}
-          disabled={isChatBlocked}
+          disabled={isChatBlocked || isSending}
         />
         <div className="emoji" ref={emojiRef}>
           <img
             src="./emoji.png"
             alt="Open emoji picker"
-            onClick={() => !isChatBlocked && setOpenEmoji((prev) => !prev)}
+            onClick={() =>
+              !isChatBlocked && !isSending && setOpenEmoji((prev) => !prev)
+            }
           />
           {openEmoji && !isChatBlocked && (
             <div className="picker">
@@ -271,9 +338,9 @@ const Chat = () => {
         <button
           className="sendButton"
           onClick={handleSend}
-          disabled={isChatBlocked}
+          disabled={isChatBlocked || isSending}
         >
-          Send
+          {isSending ? "Sending..." : "Send"}
         </button>
       </div>
     </div>
