@@ -14,13 +14,22 @@ const UserInfo = () => {
     <div className="userInfo">
       {/* ----- USER INFO ----- */}
       <div className="user">
-        <img src={currentUser.avatar || "./avatar.png"} alt="" />
+        <img
+          src={currentUser.avatar || "./avatar.png"}
+          alt=""
+          aria-hidden="true"
+        />
         <h3>{currentUser.username}</h3>
       </div>
 
       {/* ----- ACTIONS ----- */}
       <div className="actions">
-        <button className="btn-lgout" type="button" onClick={handleLogout}>
+        <button
+          className="btn-lgout"
+          type="button"
+          onClick={handleLogout}
+          aria-label="Log out"
+        >
           Log Out
         </button>
       </div>

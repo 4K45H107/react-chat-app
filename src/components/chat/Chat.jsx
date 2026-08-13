@@ -440,21 +440,30 @@ const Chat = () => {
           </div>
         </div>
         <div className="icons">
-          <img src="./phone.png" alt="" />
-          <img src="./video.png" alt="" />
+          <img src="./phone.png" alt="" aria-hidden="true" />
+          <img src="./video.png" alt="" aria-hidden="true" />
           <button
             type="button"
             className="iconButton"
             onClick={toggleDetails}
             aria-label="Toggle chat details"
+            aria-pressed={undefined}
           >
-            <img src="./info.png" alt="" />
+            <img src="./info.png" alt="" aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {/* ------ CENTER ------ */}
-      <div className="center" ref={centerRef} onScroll={handleCenterScroll}>
+      <div
+        className="center"
+        ref={centerRef}
+        onScroll={handleCenterScroll}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="Message thread"
+      >
         {isLoadingOlder && (
           <p className="loadOlderHint">Loading earlier messages…</p>
         )}
@@ -509,7 +518,7 @@ const Chat = () => {
             className={`attachImage${isChatBlocked || isSending ? " disabled" : ""}`}
             aria-label="Send an image"
           >
-            <img src="./img.png" alt="" />
+            <img src="./img.png" alt="" aria-hidden="true" />
             <input
               ref={imageInputRef}
               type="file"
@@ -519,8 +528,8 @@ const Chat = () => {
               onChange={handleImageSelect}
             />
           </label>
-          <img src="./camera.png" alt="" />
-          <img src="./mic.png" alt="" />
+          <img src="./camera.png" alt="" aria-hidden="true" />
+          <img src="./mic.png" alt="" aria-hidden="true" />
         </div>
         <input
           type="text"
@@ -538,15 +547,20 @@ const Chat = () => {
           aria-label="Message"
         />
         <div className="emoji" ref={emojiRef}>
-          <img
-            src="./emoji.png"
-            alt="Open emoji picker"
+          <button
+            type="button"
+            className="emojiToggle"
+            aria-label="Open emoji picker"
+            aria-expanded={openEmoji}
+            disabled={isChatBlocked || isSending}
             onClick={() =>
               !isChatBlocked && !isSending && setOpenEmoji((prev) => !prev)
             }
-          />
+          >
+            <img src="./emoji.png" alt="" aria-hidden="true" />
+          </button>
           {openEmoji && !isChatBlocked && (
-            <div className="picker">
+            <div className="picker" role="dialog" aria-label="Emoji picker">
               <EmojiPicker theme={Theme.DARK} onEmojiClick={handleEmoji} />
             </div>
           )}

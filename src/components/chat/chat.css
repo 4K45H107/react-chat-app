@@ -245,6 +245,19 @@
     .emoji {
       position: relative;
 
+      .emojiToggle {
+        display: inline-flex;
+        padding: 0;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
       .picker {
         position: absolute;
         bottom: 50px;

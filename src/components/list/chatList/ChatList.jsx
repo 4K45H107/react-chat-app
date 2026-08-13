@@ -104,21 +104,28 @@ const ChatList = () => {
       {/* ------ SEARCH ------ */}
       <div className="search">
         <div className="searchBar">
-          <img src="./search.png" alt="" />
+          <img src="./search.png" alt="" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
             placeholder="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search chats"
           />
         </div>
-        <img
-          src={!addMode ? "./plus.png" : "./minus.png"}
-          alt=""
+        <button
+          type="button"
           className="add"
           onClick={() => setAddMode((prev) => !prev)}
-        />
+          aria-label={addMode ? "Close add user" : "Add user"}
+          aria-expanded={addMode}
+        >
+          <img
+            src={!addMode ? "./plus.png" : "./minus.png"}
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
       {/* ------ ITEMS ------ */}
@@ -140,8 +147,23 @@ const ChatList = () => {
             className={`item${!chat.isSeen ? " unread" : ""}`}
             key={chat.chatId}
             onClick={() => handleSelectChat(chat)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleSelectChat(chat);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Open chat with ${chat.user.username}${
+              !chat.isSeen ? ", unread" : ""
+            }`}
           >
-            <img src={chat.user.avatar || "./avatar.png"} alt="" />
+            <img
+              src={chat.user.avatar || "./avatar.png"}
+              alt=""
+              aria-hidden="true"
+            />
             <div className="texts">
               <span>{chat.user.username}</span>
               <p>{chat.lastMessage}</p>
