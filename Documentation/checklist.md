@@ -107,15 +107,17 @@ Assumes **~8–12 focused hours/week** (evenings / weekends). Dates are relative
 
 | Done | Pri | Item | Notes |
 |------|-----|------|--------|
-| [ ] | P2 | Typing indicator | Short-lived field on chat or presence doc |
-| [ ] | P2 | Online/offline status | `users/{id}.lastActive` or RTDB presence |
-| [ ] | P2 | A11y + responsive pass | Focus, labels, mobile chat-open already started |
-| [ ] | P2 | Message delete (soft or hard) | Own messages only |
-| [ ] | P3 | Browser notifications | Notification API first; FCM later |
-| [ ] | P3 | JSDoc or TypeScript for core types | User, ChatMeta, Message |
-| [ ] | P3 | Unit tests for store helpers | `normalizeUser`, block logic |
+| [x] | P2 | Typing indicator | `chats/{id}.typing` via `setTypingStatus` / header “typing…” |
+| [x] | P2 | Online/offline status | `users/{id}.lastActive` heartbeat (`presence.js`) |
+| [x] | P2 | A11y + responsive pass | Focus-visible, ARIA labels, keyboard chat rows |
+| [x] | P2 | Message delete (soft or hard) | Own soft-delete (`deleted: true`); rules allow sender update |
+| [x] | P3 | Browser notifications | Notification API on unread sidebar updates |
+| [x] | P3 | JSDoc or TypeScript for core types | `src/types.js` + helpers |
+| [x] | P3 | Unit tests for store helpers | Vitest: `normalizeUser`, `getBlockFlags`, notify targets |
 
-**Exit criteria:** Beta-ready demo: presence, delete own message, decent mobile/a11y.
+**Status:** Phase 5 complete.  
+**Exit criteria:** Beta-ready demo: presence, delete own message, decent mobile/a11y.  
+**Note:** Redeploy Firestore rules after soft-delete (`firebase deploy --only firestore:rules`).
 
 ---
 
@@ -150,13 +152,9 @@ Week 11+   Groups, calls, themes, CI — as needed
 
 ---
 
-## What to do **next** (Phase 5)
+## What to do **next** (Phase 6+)
 
-1. [ ] Typing indicator
-2. [ ] Online/offline status
-3. [ ] Message delete (own messages)
-4. [ ] A11y + responsive pass
-5. [ ] Light tests / JSDoc for core types
+Pick from the backlog as needed — groups, edit, FCM, CI, themes. No fixed order.
 
 ---
 

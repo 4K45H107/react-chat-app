@@ -76,7 +76,8 @@ Document ID = Firebase Auth UID.
   username: "Alice",
   email: "alice@example.com",
   avatar: "https://...",    // Storage download URL, or ""
-  blocked: ["other_uid"]    // user IDs this user blocked
+  blocked: ["other_uid"],   // user IDs this user blocked
+  lastActive: Timestamp     // heartbeat while signed in (presence)
 }
 ```
 
@@ -85,6 +86,7 @@ Document ID = Firebase Auth UID.
 | `username` | Exact-match search in Add User (`where("username", "==", username)`) |
 | `blocked` | Used by `chatStore.changeChat` to set block flags |
 | `avatar` | Set at sign-up via Storage upload |
+| `lastActive` | Bumped from `App.jsx` via `presence.js`; header shows Online |
 
 Written on register (`Login.jsx`). Read by auth bootstrap (`userStore`), chat list (receiver profiles), and username search.
 
@@ -114,7 +116,7 @@ Created empty (`chats: []`) at sign-up. Updated when:
 - A message is sent (`syncSidebarPreview`)
 - A chat is opened (`markChatAsSeen`)
 
-Listened with `onSnapshot` in `ChatList.jsx`.
+Listened with `onSnapshot` in `ChatList.jsx` (also drives browser notifications for newly unread previews).
 
 ### 3. `chats/{chatId}`
 
@@ -123,7 +125,11 @@ Shared conversation metadata. ID is auto-generated.
 ```javascript
 {
   createdAt: Timestamp,
-  participantIds: ["uid_a", "uid_b"]  // used by security rules
+  participantIds: ["uid_a", "uid_b"],  // used by security rules
+  typing: {                             // optional short-lived typing signal
+    userId: "uid_a",
+    updatedAt: 1712345678901
+  }
 }
 ```
 
@@ -136,12 +142,13 @@ One document per message (paginated in the client).
   id: "uuid",             // same as document ID
   senderId: "user_uid",   // must equal auth.uid on create
   text: "Hello!",         // string, max 2000 chars (may be "")
-  img: "https://...",     // optional
+  img: "https://...",     // optional (cleared on soft-delete)
+  deleted: true,          // optional; soft-delete by sender
   createdAt: Timestamp    // serverTimestamp() on send
 }
 ```
 
-`Chat.jsx` listens to the newest page (`orderBy createdAt desc`, limit 30) and loads older pages on scroll-up. Opening a chat migrates any legacy `messages[]` array on the parent doc into this subcollection.
+`Chat.jsx` listens to the newest page (`orderBy createdAt desc`, limit 30) and loads older pages on scroll-up. Opening a chat migrates any legacy `messages[]` array on the parent doc into this subcollection. Own messages can be soft-deleted (`deleteMessage`).
 
 ---
 
@@ -214,7 +221,8 @@ chats/{chatId}
   messages/{messageId}
     read: chat participant
     create: participant + senderId == auth.uid + field validation
-    update/delete: denied
+    update: sender soft-delete only (deleted == true, text cleared)
+    delete: denied
 ```
 
 ### Storage (`storage.rules`)
@@ -267,12 +275,15 @@ Duplicate 1:1 chats are blocked in the client (existing `receiverId` check + syn
 | File | Role |
 |------|------|
 | `src/lib/firebase.js` | Init + persistent cache + exports |
-| `src/lib/chatService.js` | createChat, sendMessage, markSeen, listen/load |
+| `src/lib/chatService.js` | createChat, sendMessage, delete, typing, listen/load |
+| `src/lib/presence.js` | `lastActive` heartbeat + online check |
+| `src/lib/notifications.js` | Browser Notification API helpers |
 | `src/lib/upload.js` | Storage helper |
 | `src/lib/formatTime.js` | Relative/absolute message timestamps |
 | `src/lib/userStore.js` | Load `users/{uid}` |
 | `src/lib/chatStore.js` | Active chat + block flags (client-side) |
+| `src/types.js` | JSDoc typedefs for User / ChatMeta / Message |
 | `src/components/login/Login.jsx` | Auth + initial Firestore docs |
-| `src/components/list/chatList/*` | `userChats` listen + create chat |
+| `src/components/list/chatList/*` | `userChats` listen + create chat + notify |
 | `src/components/chat/Chat.jsx` | Messages subcollection + pagination |
 | `firestore.rules` / `storage.rules` | Access control |

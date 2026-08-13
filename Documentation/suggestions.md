@@ -16,10 +16,10 @@ Status relative to the current codebase (Aug 2026). Fixed items are listed at th
 
 ## Missing features (high value for chat)
 
-4. Message **delete** / **edit**.
-5. **Typing** indicators and **online/offline** presence.
-6. Camera / mic / phone / video composer actions (image attach works; others are placeholders).
-7. Shared photos/files panel in Details (images in thread only).
+4. Message **edit** (soft-delete exists).
+5. Camera / mic / phone / video composer actions (image attach works; others are placeholders).
+6. Shared photos/files panel in Details (images in thread only).
+7. Push via **FCM** (browser Notification API works while the tab is open).
 
 ---
 
@@ -35,29 +35,27 @@ Status relative to the current codebase (Aug 2026). Fixed items are listed at th
 
 11. Unread count badges and delivery/read indicators beyond bold list rows.
 12. Thread loading skeleton (list skeleton exists).
-13. Browser notifications for new messages (needs FCM or Notification API + permission).
-14. Responsive / a11y pass (ARIA on icon buttons is partly started).
-15. Multiline composer (Shift+Enter already reserved).
+13. Multiline composer (Shift+Enter already reserved).
 
 ---
 
 ## Code quality and architecture
 
-16. Centralize collection/field name constants.
-17. Required avatar policy on sign-up (optional today).
-18. TypeScript or JSDoc typedefs for User / ChatMeta / Message.
-19. Unit tests for `normalizeUser`, `changeChat` block logic, and `chatService` helpers.
+14. Centralize collection/field name constants.
+15. Required avatar policy on sign-up (optional today).
+16. Broader unit tests for `chatService` helpers (Vitest covers normalize/block/notify today).
 
 ---
 
 ## Larger product ideas
 
-20. Group chats  
-21. Voice messages / calls (phone & video icons are placeholders)  
-22. Message search inside a thread  
-23. Chat archive / mute  
-24. Themes / customization  
-25. Profile settings (change avatar / username after sign-up)  
+17. Group chats  
+18. Voice messages / calls (phone & video icons are placeholders)  
+19. Message search inside a thread  
+20. Chat archive / mute  
+21. Themes / customization  
+22. Profile settings (change avatar / username after sign-up)  
+23. CI (lint + tests on PR)  
 
 ---
 
@@ -94,3 +92,8 @@ Status relative to the current codebase (Aug 2026). Fixed items are listed at th
 | No message field validation in rules | senderId/text/img constraints on create |
 | Firestore access scattered in components | `src/lib/chatService.js` |
 | No offline cache | `persistentLocalCache` + multi-tab |
+| No typing / presence | Chat `typing` field + `users.lastActive` heartbeat |
+| No message delete | Soft-delete own messages (`deleted: true`) |
+| No browser notifications | Notification API on unread list updates |
+| No core typedefs / light tests | `src/types.js` + Vitest helpers |
+| Weak a11y on chat chrome | Focus-visible, ARIA, keyboard list rows |

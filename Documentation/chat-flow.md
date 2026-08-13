@@ -58,6 +58,7 @@ onSnapshot(doc(db, "userChats", currentUser.id), async (res) => {
 - Click item → `handleSelectChat` → `changeChat(chat.chatId, chat.user)`.
 - Rows with `isSeen === false` get an `unread` class (bold preview).
 - Empty list / empty search copy when there is nothing to show.
+- After the first hydrate, newly unread sidebar updates trigger the browser Notification API (permission requested on list mount; skips the open chat).
 
 ---
 
@@ -106,6 +107,13 @@ listenLatestMessages(chatId, { onData }); // newest 30, orderBy createdAt desc
 
 On open, `migrateLegacyMessages` moves any old `messages[]` array into the subcollection. Auto-scroll sticks to the bottom unless the user has scrolled up.
 
+Header also shows:
+
+- Partner **Online** when `users/{partner}.lastActive` is fresh (`presence.js`).
+- **typing…** when the partner’s `chats/{id}.typing` signal is recent.
+
+Own bubbles expose **Delete** → `deleteMessage` soft-deletes (`deleted: true`, text/img cleared). Both sides see “Message deleted”.
+
 ---
 
 ## Blocking behavior (client)
@@ -126,9 +134,9 @@ Block state is owned by the current user’s `blocked` array (rules only allow u
 CREATE                          SEND
 ─────                           ────
 + on user                       Send
-  → chats/{id}                    → arrayUnion message on chats/{id}
+  → chats/{id} + participantIds   → messages/{id} subcollection doc
   → userChats both sides          → patch lastMessage / isSeen / updatedAt
-  → list snapshot                 → both chats + both lists update via snapshot
+  → list snapshot                 → both lists update via snapshot
 ```
 
 ---
@@ -145,6 +153,7 @@ Conversations stay isolated by `chatId`; metadata stays per-user in `userChats`.
 
 ## Summary
 
-- Shared messages in `chats`; personal list metadata in `userChats`.
+- Shared messages in `chats/{id}/messages`; personal list metadata in `userChats`.
 - Create from Add User; open from ChatList; send updates thread + both sidebars.
+- Typing, presence, soft-delete, and browser notifications round out the beta UX.
 - Real-time via document snapshots; Zustand only holds the active chat selection and block/details flags.
