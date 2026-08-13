@@ -9,6 +9,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./lib/firebase";
 import { useUserStore } from "./lib/userStore";
 import { useChatStore } from "./lib/chatStore";
+import { bumpLastActive } from "./lib/presence";
 
 const App = () => {
   // Get the current user from zustand userStore
@@ -28,6 +29,34 @@ const App = () => {
     // Unsubscribe from the listener when the component unmounts
     return () => unSub();
   }, [fetchUserInfo]);
+
+  // Heartbeat presence while signed in
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const tick = () => {
+      bumpLastActive(currentUser.id).catch((error) => {
+        console.warn(
+          "[App] Failed to bump lastActive:",
+          error.code,
+          error.message
+        );
+      });
+    };
+
+    tick();
+    const intervalId = setInterval(tick, 30_000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [currentUser?.id]);
 
   if (isLoading) return <div className="loading">Loading...</div>;
 

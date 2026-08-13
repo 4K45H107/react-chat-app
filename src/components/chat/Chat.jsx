@@ -16,6 +16,7 @@ import {
   setTypingStatus,
   syncSidebarPreview,
 } from "../../lib/chatService";
+import { isUserOnline, listenUserPresence } from "../../lib/presence";
 
 const TYPING_TTL_MS = 4000;
 
@@ -28,6 +29,7 @@ const Chat = () => {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const [partnerOnline, setPartnerOnline] = useState(false);
 
   const {
     chatId,
@@ -65,6 +67,7 @@ const Chat = () => {
     setOlderMessages([]);
     setHasMore(false);
     setPartnerTyping(false);
+    setPartnerOnline(false);
     oldestDocRef.current = null;
     hasLoadedOlderRef.current = false;
     shouldStickToBottomRef.current = true;
@@ -121,6 +124,33 @@ const Chat = () => {
       setTypingStatus(chatId, currentUser.id, false).catch(() => {});
     };
   }, [chatId, currentUser?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let refreshTimer = null;
+    const unsub = listenUserPresence(user.id, {
+      onData: (lastActive) => {
+        setPartnerOnline(isUserOnline(lastActive));
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          setPartnerOnline(isUserOnline(lastActive));
+        }, 60_000);
+      },
+      onError: (error) => {
+        console.warn(
+          "[Chat] Presence listener failed:",
+          error.code,
+          error.message
+        );
+      },
+    });
+
+    return () => {
+      unsub();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [user?.id]);
 
   const clearOwnTyping = async () => {
     if (!chatId || !currentUser?.id || !isTypingRef.current) return;
@@ -401,7 +431,11 @@ const Chat = () => {
           <div className="texts">
             <span>{user?.username ?? "Unknown user"}</span>
             <p className={partnerTyping ? "typingStatus" : undefined}>
-              {partnerTyping ? "typing…" : (user?.email ?? "")}
+              {partnerTyping
+                ? "typing…"
+                : partnerOnline
+                  ? "Online"
+                  : (user?.email ?? "Offline")}
             </p>
           </div>
         </div>
