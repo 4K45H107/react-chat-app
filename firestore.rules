@@ -26,11 +26,15 @@ service cloud.firestore {
     }
 
     // Per-user chat list — readable by any signed-in user (sender must read
-    // receiver's doc to update lastMessage when sending a message)
+    // receiver's doc to update lastMessage when sending a message).
+    // Owner may update freely; others may only patch the chats array.
     match /userChats/{userId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn();
+      allow update: if signedIn() && (
+        request.auth.uid == userId ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['chats'])
+      );
     }
 
     // Chat threads — participants only (legacy docs without participantIds
