@@ -67,6 +67,12 @@
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          min-height: 1.2em;
+
+          &.typingStatus {
+            color: #8ec7ff;
+            font-style: italic;
+          }
         }
       }
     }

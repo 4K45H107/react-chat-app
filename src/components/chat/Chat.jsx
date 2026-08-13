@@ -7,13 +7,17 @@ import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
 import {
+  listenChatTyping,
   listenLatestMessages,
   loadOlderMessages,
   markChatAsSeen,
   migrateLegacyMessages,
   sendMessage,
+  setTypingStatus,
   syncSidebarPreview,
 } from "../../lib/chatService";
+
+const TYPING_TTL_MS = 4000;
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
@@ -23,6 +27,7 @@ const Chat = () => {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [partnerTyping, setPartnerTyping] = useState(false);
 
   const {
     chatId,
@@ -45,6 +50,8 @@ const Chat = () => {
   const hasLoadedOlderRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const isLoadingOlderRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   const olderIds = new Set(olderMessages.map((message) => message.id));
   const messages = [
@@ -52,15 +59,107 @@ const Chat = () => {
     ...latestMessages.filter((message) => !olderIds.has(message.id)),
   ];
 
-  // Reset pagination state when switching conversations
+  // Reset pagination / typing state when switching conversations
   useEffect(() => {
     setLatestMessages([]);
     setOlderMessages([]);
     setHasMore(false);
+    setPartnerTyping(false);
     oldestDocRef.current = null;
     hasLoadedOlderRef.current = false;
     shouldStickToBottomRef.current = true;
+    isTypingRef.current = false;
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
   }, [chatId]);
+
+  useEffect(() => {
+    if (!chatId || !user?.id) return;
+
+    let clearPartnerTimer = null;
+
+    const unsub = listenChatTyping(chatId, {
+      onData: (typing) => {
+        if (clearPartnerTimer) clearTimeout(clearPartnerTimer);
+
+        if (!typing?.userId || typing.userId === currentUser.id) {
+          setPartnerTyping(false);
+          return;
+        }
+
+        const age = Date.now() - (typing.updatedAt ?? 0);
+        const fresh = age < TYPING_TTL_MS && typing.userId === user.id;
+        setPartnerTyping(fresh);
+
+        if (fresh) {
+          clearPartnerTimer = setTimeout(() => {
+            setPartnerTyping(false);
+          }, TYPING_TTL_MS - age);
+        }
+      },
+      onError: (error) => {
+        console.warn(
+          "[Chat] Typing listener failed:",
+          error.code,
+          error.message
+        );
+      },
+    });
+
+    return () => {
+      unsub();
+      if (clearPartnerTimer) clearTimeout(clearPartnerTimer);
+    };
+  }, [chatId, user?.id, currentUser.id]);
+
+  // Clear own typing flag on unmount / leave chat
+  useEffect(() => {
+    return () => {
+      if (!chatId || !currentUser?.id || !isTypingRef.current) return;
+      setTypingStatus(chatId, currentUser.id, false).catch(() => {});
+    };
+  }, [chatId, currentUser?.id]);
+
+  const clearOwnTyping = async () => {
+    if (!chatId || !currentUser?.id || !isTypingRef.current) return;
+    isTypingRef.current = false;
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    try {
+      await setTypingStatus(chatId, currentUser.id, false);
+    } catch (error) {
+      console.warn("[Chat] Failed to clear typing:", error.code, error.message);
+    }
+  };
+
+  const handleTextChange = (value) => {
+    setText(value);
+    if (!chatId || !currentUser?.id || isChatBlocked) return;
+
+    if (value.trim()) {
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        setTypingStatus(chatId, currentUser.id, true).catch((error) => {
+          console.warn(
+            "[Chat] Failed to set typing:",
+            error.code,
+            error.message
+          );
+        });
+      }
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        clearOwnTyping();
+      }, TYPING_TTL_MS);
+    } else {
+      clearOwnTyping();
+    }
+  };
 
   useEffect(() => {
     if (!shouldStickToBottomRef.current || isLoadingOlder) return;
@@ -204,6 +303,7 @@ const Chat = () => {
     setIsSending(true);
     shouldStickToBottomRef.current = true;
     try {
+      await clearOwnTyping();
       await sendMessage({
         chatId,
         senderId: currentUser.id,
@@ -242,6 +342,7 @@ const Chat = () => {
     setIsSending(true);
     shouldStickToBottomRef.current = true;
     try {
+      await clearOwnTyping();
       const imgUrl = await upload(file, { uid: currentUser.id });
       if (!imgUrl) {
         toast.error("Failed to upload image. Please try again.");
@@ -299,7 +400,9 @@ const Chat = () => {
           />
           <div className="texts">
             <span>{user?.username ?? "Unknown user"}</span>
-            <p>{user?.email ?? ""}</p>
+            <p className={partnerTyping ? "typingStatus" : undefined}>
+              {partnerTyping ? "typing…" : (user?.email ?? "")}
+            </p>
           </div>
         </div>
         <div className="icons">
@@ -395,9 +498,10 @@ const Chat = () => {
                 ? "Sending..."
                 : "Type a message..."
           }
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleComposerKeyDown}
           disabled={isChatBlocked || isSending}
+          aria-label="Message"
         />
         <div className="emoji" ref={emojiRef}>
           <img

@@ -193,3 +193,23 @@ export const migrateLegacyMessages = async (chatId) => {
   await updateDoc(chatRef, { messages: deleteField() });
   return true;
 };
+
+/** Short-lived typing signal on the chat document. */
+export const setTypingStatus = async (chatId, userId, isTyping) => {
+  await updateDoc(doc(db, "chats", chatId), {
+    typing: {
+      userId: isTyping ? userId : null,
+      updatedAt: Date.now(),
+    },
+  });
+};
+
+export const listenChatTyping = (chatId, { onData, onError }) => {
+  return onSnapshot(
+    doc(db, "chats", chatId),
+    (snap) => {
+      onData(snap.data()?.typing ?? null);
+    },
+    onError
+  );
+};
