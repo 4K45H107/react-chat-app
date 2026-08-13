@@ -75,7 +75,16 @@ service cloud.firestore {
               && request.resource.data.img.size() <= 2048
             )
           );
-        allow update, delete: if false;
+        // Soft-delete: sender may mark own message deleted
+        allow update: if canAccessChat(chatId)
+          && resource.data.senderId == request.auth.uid
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.deleted == true
+          && request.resource.data.text is string
+          && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'deleted'])
+          && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img']);
+        allow delete: if false;
       }
     }
   }

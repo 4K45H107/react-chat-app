@@ -189,10 +189,40 @@
           background-color: rgb(17, 25, 40, 0.5);
           border-radius: 10px;
         }
+        .deletedText {
+          font-style: italic;
+          color: #b0b0b0;
+          background-color: rgb(17, 25, 40, 0.35) !important;
+        }
+
+        .messageMeta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         span {
           font-size: 12px;
           color: #aaaaaa;
         }
+
+        .deleteMessage {
+          border: none;
+          background: transparent;
+          color: #c9c9c9;
+          font-size: 11px;
+          cursor: pointer;
+          padding: 0;
+          text-decoration: underline;
+
+          &:hover {
+            color: #ffb4b4;
+          }
+        }
+      }
+
+      &.deleted .texts p {
+        opacity: 0.85;
       }
     }
   }

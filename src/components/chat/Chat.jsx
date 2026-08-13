@@ -7,6 +7,7 @@ import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
 import {
+  deleteMessage,
   listenChatTyping,
   listenLatestMessages,
   loadOlderMessages,
@@ -411,6 +412,24 @@ const Chat = () => {
     handleSend();
   };
 
+  const handleDeleteMessage = async (message) => {
+    if (!message?.id || message.senderId !== currentUser.id || message.deleted) {
+      return;
+    }
+
+    try {
+      await deleteMessage(chatId, message);
+    } catch (error) {
+      console.error(
+        "[Chat] Failed to delete message:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to delete message. Please try again.");
+    }
+  };
+
   return (
     <div className="chat">
       {/* ------ TOP ------ */}
@@ -447,7 +466,6 @@ const Chat = () => {
             className="iconButton"
             onClick={toggleDetails}
             aria-label="Toggle chat details"
-            aria-pressed={undefined}
           >
             <img src="./info.png" alt="" aria-hidden="true" />
           </button>
@@ -485,27 +503,45 @@ const Chat = () => {
         {messages.map((message, index) => (
           <div
             className={`message ${
-              message.senderId === currentUser.id && "own"
-            }`}
+              message.senderId === currentUser.id ? "own" : ""
+            }${message.deleted ? " deleted" : ""}`}
             key={message.id ?? `${message.senderId}-${index}`}
           >
             <div className="texts">
-              {message.img ? (
-                <a
-                  className="messageImageLink"
-                  href={message.img}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    className="messageImage"
-                    src={message.img}
-                    alt={message.text || "Shared image"}
-                  />
-                </a>
-              ) : null}
-              {message.text ? <p>{message.text}</p> : null}
-              <span>{formatMessageTime(message.createdAt)}</span>
+              {message.deleted ? (
+                <p className="deletedText">Message deleted</p>
+              ) : (
+                <>
+                  {message.img ? (
+                    <a
+                      className="messageImageLink"
+                      href={message.img}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        className="messageImage"
+                        src={message.img}
+                        alt={message.text || "Shared image"}
+                      />
+                    </a>
+                  ) : null}
+                  {message.text ? <p>{message.text}</p> : null}
+                </>
+              )}
+              <div className="messageMeta">
+                <span>{formatMessageTime(message.createdAt)}</span>
+                {message.senderId === currentUser.id && !message.deleted && (
+                  <button
+                    type="button"
+                    className="deleteMessage"
+                    onClick={() => handleDeleteMessage(message)}
+                    aria-label="Delete message"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}

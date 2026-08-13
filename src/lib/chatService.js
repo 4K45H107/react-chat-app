@@ -129,6 +129,20 @@ export const sendMessage = async ({
   return messageId;
 };
 
+/** Soft-delete own message (keeps doc for thread continuity). */
+export const deleteMessage = async (chatId, message) => {
+  if (!message?.id) return;
+
+  await updateDoc(doc(db, "chats", chatId, "messages", message.id), {
+    id: message.id,
+    senderId: message.senderId,
+    text: "",
+    deleted: true,
+    createdAt: message.createdAt ?? serverTimestamp(),
+    img: deleteField(),
+  });
+};
+
 /** Listen to the newest page of messages (newest-first query, reversed in callback). */
 export const listenLatestMessages = (chatId, { onData, onError }) => {
   const messagesQuery = query(
