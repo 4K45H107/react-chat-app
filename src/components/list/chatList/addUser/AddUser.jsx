@@ -3,19 +3,14 @@ import { createPortal } from "react-dom";
 import "./AddUser.css";
 import { toast } from "react-toastify";
 import {
-  arrayUnion,
   collection,
-  doc,
-  getDoc,
   getDocs,
   query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
 import { useUserStore } from "../../../../lib/userStore";
+import { createChat, hasExistingChatWith } from "../../../../lib/chatService";
 
 const AddUser = ({ onClose }) => {
   const [user, setUser] = useState(null);
@@ -47,8 +42,6 @@ const AddUser = ({ onClose }) => {
 
     try {
       const userRef = collection(db, "users");
-
-      // create a query against a collection
       const q = query(userRef, where("username", "==", username));
       const querySnapShot = await getDocs(q);
 
@@ -79,7 +72,6 @@ const AddUser = ({ onClose }) => {
   };
 
   const handleAdd = async () => {
-    // Guard: "+" must not run until a user has been found via search
     if (!user?.id || isAddingRef.current) return;
 
     if (user.id === currentUser.id) {
@@ -90,15 +82,10 @@ const AddUser = ({ onClose }) => {
     isAddingRef.current = true;
     setIsAdding(true);
 
-    const chatRef = collection(db, "chats");
-    const userChatRef = collection(db, "userChats");
-
     try {
-      // Avoid a second 1:1 thread with the same person
-      const myChatsSnap = await getDoc(doc(userChatRef, currentUser.id));
-      const existingChats = myChatsSnap.data()?.chats ?? [];
-      const alreadyChatting = existingChats.some(
-        (chat) => chat.receiverId === user.id
+      const alreadyChatting = await hasExistingChatWith(
+        currentUser.id,
+        user.id
       );
 
       if (alreadyChatting) {
@@ -106,32 +93,9 @@ const AddUser = ({ onClose }) => {
         return;
       }
 
-      // New chat Id to access the chat document
-      const newChatRef = doc(chatRef);
-      // Add chat to userChats
-      await setDoc(newChatRef, {
-        createdAt: serverTimestamp(),
-        participantIds: [currentUser.id, user.id],
-      });
-
-      // Add chat to userChats
-      await updateDoc(doc(userChatRef, user.id), {
-        chats: arrayUnion({
-          chatId: newChatRef.id,
-          receiverId: currentUser.id,
-          lastMessage: "",
-          updatedAt: Date.now(),
-        }),
-      });
-
-      // Add chat to currentUser
-      await updateDoc(doc(userChatRef, currentUser.id), {
-        chats: arrayUnion({
-          chatId: newChatRef.id,
-          receiverId: user.id,
-          lastMessage: "",
-          updatedAt: Date.now(),
-        }),
+      await createChat({
+        currentUserId: currentUser.id,
+        otherUserId: user.id,
       });
 
       toast.success("Chat created!");

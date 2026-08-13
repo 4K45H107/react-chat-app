@@ -2,34 +2,18 @@ import React, { useState, useRef, useEffect } from "react";
 import "./chat.css";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "react-toastify";
-import { db } from "../../lib/firebase";
-import {
-  collection,
-  deleteField,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  startAfter,
-  updateDoc,
-} from "firebase/firestore";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
-
-const PAGE_SIZE = 30;
-
-const mapMessageDocs = (docs) =>
-  docs.map((messageDoc) => ({
-    id: messageDoc.id,
-    ...messageDoc.data(),
-  }));
+import {
+  listenLatestMessages,
+  loadOlderMessages,
+  markChatAsSeen,
+  migrateLegacyMessages,
+  sendMessage,
+  syncSidebarPreview,
+} from "../../lib/chatService";
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
@@ -83,84 +67,46 @@ const Chat = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoadingOlder]);
 
-  // One-time migrate legacy messages[] on the chat doc into the subcollection
   useEffect(() => {
     if (!chatId || migratedRef.current.has(chatId)) return;
 
-    const migrateLegacyMessages = async () => {
-      try {
-        const chatRef = doc(db, "chats", chatId);
-        const chatSnap = await getDoc(chatRef);
-        if (!chatSnap.exists()) return;
-
-        const legacy = chatSnap.data()?.messages;
-        if (!Array.isArray(legacy) || legacy.length === 0) {
-          migratedRef.current.add(chatId);
-          return;
-        }
-
-        for (const msg of legacy) {
-          const messageId = msg.id || crypto.randomUUID();
-          await setDoc(
-            doc(db, "chats", chatId, "messages", messageId),
-            {
-              id: messageId,
-              senderId: msg.senderId,
-              text: msg.text ?? "",
-              ...(msg.img ? { img: msg.img } : {}),
-              createdAt: msg.createdAt ?? new Date(),
-            },
-            { merge: true }
-          );
-        }
-
-        await updateDoc(chatRef, { messages: deleteField() });
-        migratedRef.current.add(chatId);
-      } catch (error) {
+    migrateLegacyMessages(chatId)
+      .catch((error) => {
         console.warn(
           "[Chat] Legacy message migration skipped:",
           error.code,
           error.message
         );
-      }
-    };
-
-    migrateLegacyMessages();
+      })
+      .finally(() => {
+        migratedRef.current.add(chatId);
+      });
   }, [chatId]);
 
-  // Live listener for the newest page of messages
   useEffect(() => {
-    const messagesQuery = query(
-      collection(db, "chats", chatId, "messages"),
-      orderBy("createdAt", "desc"),
-      limit(PAGE_SIZE)
-    );
+    const unsub = listenLatestMessages(chatId, {
+      onData: ({ messages: newestPage, oldestDoc, hasMore: pageHasMore }) => {
+        setLatestMessages(newestPage);
 
-    const unsub = onSnapshot(
-      messagesQuery,
-      (snap) => {
-        setLatestMessages(mapMessageDocs(snap.docs).reverse());
-
-        // Don't reset the older-page cursor after the user has scrolled up
         if (!hasLoadedOlderRef.current) {
-          oldestDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-          setHasMore(snap.docs.length === PAGE_SIZE);
+          oldestDocRef.current = oldestDoc;
+          setHasMore(pageHasMore);
         }
       },
-      (error) => {
+      onError: (error) => {
         console.error(
           "[Chat] Failed to listen to chat messages:",
           error.code,
           error.message,
           error
         );
-      }
-    );
+      },
+    });
 
     return () => unsub();
   }, [chatId]);
 
-  const loadOlderMessages = async () => {
+  const handleLoadOlder = async () => {
     if (
       !chatId ||
       !hasMore ||
@@ -180,21 +126,14 @@ const Chat = () => {
     const previousTop = centerEl?.scrollTop ?? 0;
 
     try {
-      const olderQuery = query(
-        collection(db, "chats", chatId, "messages"),
-        orderBy("createdAt", "desc"),
-        startAfter(oldestDocRef.current),
-        limit(PAGE_SIZE)
-      );
-      const snap = await getDocs(olderQuery);
-      const batch = mapMessageDocs(snap.docs).reverse();
+      const result = await loadOlderMessages(chatId, oldestDocRef.current);
 
-      if (batch.length) {
-        setOlderMessages((prev) => [...batch, ...prev]);
-        oldestDocRef.current = snap.docs[snap.docs.length - 1];
+      if (result.messages.length) {
+        setOlderMessages((prev) => [...result.messages, ...prev]);
+        oldestDocRef.current = result.oldestDoc;
       }
 
-      setHasMore(snap.docs.length === PAGE_SIZE);
+      setHasMore(result.hasMore);
 
       requestAnimationFrame(() => {
         if (!centerEl) return;
@@ -224,39 +163,22 @@ const Chat = () => {
     shouldStickToBottomRef.current = distanceFromBottom < 80;
 
     if (centerEl.scrollTop < 80) {
-      loadOlderMessages();
+      handleLoadOlder();
     }
   };
 
-  // Mark this conversation as seen in the current user's sidebar
   useEffect(() => {
     if (!chatId || !currentUser?.id) return;
 
-    const markAsSeen = async () => {
-      try {
-        const userChatsRef = doc(db, "userChats", currentUser.id);
-        const snap = await getDoc(userChatsRef);
-        if (!snap.exists()) return;
-
-        const chats = [...(snap.data().chats ?? [])];
-        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
-        if (chatIndex === -1 || chats[chatIndex].isSeen) return;
-
-        chats[chatIndex] = { ...chats[chatIndex], isSeen: true };
-        await updateDoc(userChatsRef, { chats });
-      } catch (error) {
-        console.warn(
-          "[Chat] Failed to mark chat as seen:",
-          error.code,
-          error.message
-        );
-      }
-    };
-
-    markAsSeen();
+    markChatAsSeen(currentUser.id, chatId).catch((error) => {
+      console.warn(
+        "[Chat] Failed to mark chat as seen:",
+        error.code,
+        error.message
+      );
+    });
   }, [chatId, currentUser?.id]);
 
-  // Close emoji picker when clicking outside the picker/toggle
   useEffect(() => {
     if (!openEmoji) return;
 
@@ -276,57 +198,23 @@ const Chat = () => {
     setOpenEmoji(false);
   };
 
-  const syncSidebarPreview = async (preview) => {
-    const participantIds = [currentUser.id, user.id];
-
-    for (const participantId of participantIds) {
-      try {
-        const userChatsRef = doc(db, "userChats", participantId);
-        const userChatsSnapshot = await getDoc(userChatsRef);
-
-        if (!userChatsSnapshot.exists()) continue;
-
-        const userChatsData = userChatsSnapshot.data();
-        const chats = userChatsData.chats ?? [];
-        const chatIndex = chats.findIndex((c) => c.chatId === chatId);
-
-        if (chatIndex === -1) continue;
-
-        chats[chatIndex].lastMessage = preview;
-        chats[chatIndex].isSeen = participantId === currentUser.id;
-        chats[chatIndex].updatedAt = Date.now();
-
-        await updateDoc(userChatsRef, { chats });
-      } catch (sidebarError) {
-        console.warn(
-          "[Chat] Failed to sync sidebar for participant:",
-          participantId,
-          sidebarError.code,
-          sidebarError.message
-        );
-      }
-    }
-  };
-
-  const writeMessage = async ({ text: messageText = "", img }) => {
-    const messageId = crypto.randomUUID();
-    await setDoc(doc(db, "chats", chatId, "messages", messageId), {
-      id: messageId,
-      senderId: currentUser.id,
-      text: messageText,
-      ...(img ? { img } : {}),
-      createdAt: serverTimestamp(),
-    });
-  };
-
   const handleSend = async () => {
     if (text === "" || !user || isChatBlocked || isSending) return;
 
     setIsSending(true);
     shouldStickToBottomRef.current = true;
     try {
-      await writeMessage({ text });
-      await syncSidebarPreview(text);
+      await sendMessage({
+        chatId,
+        senderId: currentUser.id,
+        text,
+      });
+      await syncSidebarPreview({
+        chatId,
+        currentUserId: currentUser.id,
+        otherUserId: user.id,
+        preview: text,
+      });
       setText("");
     } catch (error) {
       console.error(
@@ -361,8 +249,18 @@ const Chat = () => {
       }
 
       const caption = text.trim();
-      await writeMessage({ text: caption, img: imgUrl });
-      await syncSidebarPreview(caption || "Photo");
+      await sendMessage({
+        chatId,
+        senderId: currentUser.id,
+        text: caption,
+        img: imgUrl,
+      });
+      await syncSidebarPreview({
+        chatId,
+        currentUserId: currentUser.id,
+        otherUserId: user.id,
+        preview: caption || "Photo",
+      });
       setText("");
     } catch (error) {
       console.error(
@@ -394,7 +292,6 @@ const Chat = () => {
         >
           ←
         </button>
-        {/* Active chat partner — populated from chatStore when a chat is selected */}
         <div className="user">
           <img
             src={user?.avatar || "./avatar.png"}
@@ -405,7 +302,6 @@ const Chat = () => {
             <p>{user?.email ?? ""}</p>
           </div>
         </div>
-        {/* ---- ICONS ---- */}
         <div className="icons">
           <img src="./phone.png" alt="" />
           <img src="./video.png" alt="" />
@@ -422,7 +318,9 @@ const Chat = () => {
 
       {/* ------ CENTER ------ */}
       <div className="center" ref={centerRef} onScroll={handleCenterScroll}>
-        {isLoadingOlder && <p className="loadOlderHint">Loading earlier messages…</p>}
+        {isLoadingOlder && (
+          <p className="loadOlderHint">Loading earlier messages…</p>
+        )}
         {!hasMore && messages.length > 0 && (
           <p className="loadOlderHint">Beginning of conversation</p>
         )}
@@ -467,7 +365,7 @@ const Chat = () => {
         ))}
         <div ref={endRef} />
       </div>
-      {/* Disable composer when either party has blocked the other */}
+
       <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
         <div className="icons">
           <label
