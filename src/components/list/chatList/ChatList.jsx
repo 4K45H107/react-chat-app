@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./ChatList.css";
 import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
@@ -7,18 +7,31 @@ import { useChatStore } from "../../../lib/chatStore";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { normalizeUser } from "../../../lib/normalizeUser";
+import {
+  ensureNotificationPermission,
+  getUnreadNotificationTargets,
+  showChatNotification,
+} from "../../../lib/notifications";
 
 const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState("");
   const [isLoadingList, setIsLoadingList] = useState(true);
+  const previousChatsRef = useRef(null);
 
   const { currentUser } = useUserStore();
-  const { changeChat } = useChatStore();
+  const { changeChat, chatId } = useChatStore();
+  const activeChatIdRef = useRef(chatId);
+  activeChatIdRef.current = chatId;
+
+  useEffect(() => {
+    ensureNotificationPermission().catch(() => {});
+  }, []);
 
   useEffect(() => {
     setIsLoadingList(true);
+    previousChatsRef.current = null;
     // Get chats from firestore
     // onSnapshot is a listener that listens for changes to the document
     const unSub = onSnapshot(
@@ -55,7 +68,34 @@ const ChatList = () => {
           });
 
           const chatList = (await Promise.all(promises)).filter(Boolean);
-          setChats(chatList.sort((a, b) => b.updatedAt - a.updatedAt));
+          chatList.sort((a, b) => b.updatedAt - a.updatedAt);
+
+          const targets = getUnreadNotificationTargets(
+            chatList,
+            previousChatsRef.current,
+            activeChatIdRef.current
+          );
+
+          previousChatsRef.current = new Map(
+            chatList.map((chat) => [
+              chat.chatId,
+              {
+                updatedAt: chat.updatedAt,
+                lastMessage: chat.lastMessage,
+              },
+            ])
+          );
+
+          for (const chat of targets) {
+            showChatNotification({
+              title: chat.user?.username || "New message",
+              body: chat.lastMessage,
+              tag: chat.chatId,
+              onClick: () => changeChat(chat.chatId, chat.user),
+            });
+          }
+
+          setChats(chatList);
         } catch (error) {
           console.error(
             "[ChatList] Failed to process chat list:",
@@ -81,7 +121,7 @@ const ChatList = () => {
     );
 
     return () => unSub();
-  }, [currentUser.id]);
+  }, [currentUser.id, changeChat]);
 
   const handleSelectChat = (chat) => {
     if (!chat.user) return;
