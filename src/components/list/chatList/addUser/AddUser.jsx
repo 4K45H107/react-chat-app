@@ -112,7 +112,6 @@ const AddUser = ({ onClose }) => {
       await setDoc(newChatRef, {
         createdAt: serverTimestamp(),
         participantIds: [currentUser.id, user.id],
-        messages: [],
       });
 
       // Add chat to userChats

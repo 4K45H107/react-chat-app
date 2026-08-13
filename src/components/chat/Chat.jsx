@@ -4,10 +4,15 @@ import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "react-toastify";
 import { db } from "../../lib/firebase";
 import {
-  arrayUnion,
+  collection,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { useChatStore } from "../../lib/chatStore";
@@ -18,7 +23,7 @@ import upload from "../../lib/upload";
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState("");
-  const [chat, setChat] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [isSending, setIsSending] = useState(false);
 
   const {
@@ -36,18 +41,73 @@ const Chat = () => {
   const endRef = useRef(null);
   const emojiRef = useRef(null);
   const imageInputRef = useRef(null);
+  const migratedRef = useRef(new Set());
 
   // Scroll to the latest message whenever the message list updates
-  // (new incoming message, own send via snapshot, or opening a chat)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat?.messages]);
+  }, [messages]);
+
+  // One-time migrate legacy messages[] on the chat doc into the subcollection
+  useEffect(() => {
+    if (!chatId || migratedRef.current.has(chatId)) return;
+
+    const migrateLegacyMessages = async () => {
+      try {
+        const chatRef = doc(db, "chats", chatId);
+        const chatSnap = await getDoc(chatRef);
+        if (!chatSnap.exists()) return;
+
+        const legacy = chatSnap.data()?.messages;
+        if (!Array.isArray(legacy) || legacy.length === 0) {
+          migratedRef.current.add(chatId);
+          return;
+        }
+
+        for (const msg of legacy) {
+          const messageId = msg.id || crypto.randomUUID();
+          await setDoc(
+            doc(db, "chats", chatId, "messages", messageId),
+            {
+              id: messageId,
+              senderId: msg.senderId,
+              text: msg.text ?? "",
+              ...(msg.img ? { img: msg.img } : {}),
+              createdAt: msg.createdAt ?? new Date(),
+            },
+            { merge: true }
+          );
+        }
+
+        await updateDoc(chatRef, { messages: deleteField() });
+        migratedRef.current.add(chatId);
+      } catch (error) {
+        console.warn(
+          "[Chat] Legacy message migration skipped:",
+          error.code,
+          error.message
+        );
+      }
+    };
+
+    migrateLegacyMessages();
+  }, [chatId]);
 
   useEffect(() => {
+    const messagesQuery = query(
+      collection(db, "chats", chatId, "messages"),
+      orderBy("createdAt", "asc")
+    );
+
     const unsub = onSnapshot(
-      doc(db, "chats", chatId),
-      (res) => {
-        setChat(res.data());
+      messagesQuery,
+      (snap) => {
+        setMessages(
+          snap.docs.map((messageDoc) => ({
+            id: messageDoc.id,
+            ...messageDoc.data(),
+          }))
+        );
       },
       (error) => {
         console.error(
@@ -142,20 +202,23 @@ const Chat = () => {
     }
   };
 
+  const writeMessage = async ({ text: messageText = "", img }) => {
+    const messageId = crypto.randomUUID();
+    await setDoc(doc(db, "chats", chatId, "messages", messageId), {
+      id: messageId,
+      senderId: currentUser.id,
+      text: messageText,
+      ...(img ? { img } : {}),
+      createdAt: serverTimestamp(),
+    });
+  };
+
   const handleSend = async () => {
     if (text === "" || !user || isChatBlocked || isSending) return;
 
     setIsSending(true);
     try {
-      await updateDoc(doc(db, "chats", chatId), {
-        messages: arrayUnion({
-          id: crypto.randomUUID(),
-          senderId: currentUser.id,
-          text,
-          createdAt: new Date(),
-        }),
-      });
-
+      await writeMessage({ text });
       await syncSidebarPreview(text);
       setText("");
     } catch (error) {
@@ -190,16 +253,7 @@ const Chat = () => {
       }
 
       const caption = text.trim();
-      await updateDoc(doc(db, "chats", chatId), {
-        messages: arrayUnion({
-          id: crypto.randomUUID(),
-          senderId: currentUser.id,
-          text: caption,
-          img: imgUrl,
-          createdAt: new Date(),
-        }),
-      });
-
+      await writeMessage({ text: caption, img: imgUrl });
       await syncSidebarPreview(caption || "Photo");
       setText("");
     } catch (error) {
@@ -267,12 +321,12 @@ const Chat = () => {
               : "You blocked this user."}
           </p>
         )}
-        {!chat?.messages?.length && !isChatBlocked && (
+        {!messages.length && !isChatBlocked && (
           <p className="emptyMessages">
             No messages yet. Say hello to start the conversation.
           </p>
         )}
-        {chat?.messages?.map((message, index) => (
+        {messages.map((message, index) => (
           <div
             className={`message ${
               message.senderId === currentUser.id && "own"

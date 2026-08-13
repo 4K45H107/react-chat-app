@@ -19,6 +19,14 @@ service cloud.firestore {
         && request.resource.data.participantIds.size() == 2;
     }
 
+    function canAccessChat(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return signedIn() && (
+        !('participantIds' in chat) ||
+        request.auth.uid in chat.participantIds
+      );
+    }
+
     // User profiles — readable by any signed-in user (needed for username search)
     match /users/{userId} {
       allow read: if signedIn();
@@ -48,6 +56,14 @@ service cloud.firestore {
         !('participantIds' in resource.data) || isChatParticipant()
       );
       allow delete: if isChatParticipant();
+
+      // Messages live in a subcollection (not an array on the chat doc)
+      match /messages/{messageId} {
+        allow read: if canAccessChat(chatId);
+        allow create: if canAccessChat(chatId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
     }
   }
 }
