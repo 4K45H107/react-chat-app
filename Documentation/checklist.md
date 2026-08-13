@@ -85,15 +85,17 @@ Assumes **~8–12 focused hours/week** (evenings / weekends). Dates are relative
 
 | Done | Pri | Item | Notes |
 |------|-----|------|--------|
-| [ ] | P2 | Restrict `chats` to participants | Rules need `participantIds` on chat doc — add field when creating chat |
-| [ ] | P2 | Narrow `userChats` update rules | Or move sidebar sync to Cloud Function |
-| [ ] | P2 | Validate message fields in rules | `text` string, max length, `senderId == auth.uid` |
-| [ ] | P2 | Move messages to subcollection | `chats/{id}/messages/{messageId}` + limit/query |
-| [ ] | P2 | Pagination / infinite scroll | Load last N; load older on scroll up |
-| [ ] | P2 | Service layer for Firestore | Thin helpers: createChat, sendMessage, markSeen |
-| [ ] | P3 | Firestore offline persistence | One-liner enable; big UX win |
+| [x] | P2 | Restrict `chats` to participants | `participantIds` on create; rules check membership |
+| [x] | P2 | Narrow `userChats` update rules | Owner full update; others `chats`-only patch |
+| [x] | P2 | Move messages to subcollection | `chats/{id}/messages/{messageId}` + legacy migrate |
+| [x] | P2 | Validate message fields in rules | `senderId`, text ≤2000, allowed keys, optional `img` |
+| [x] | P2 | Pagination / infinite scroll | Newest page live; older via scroll-up |
+| [x] | P2 | Service layer for Firestore | `src/lib/chatService.js` |
+| [x] | P3 | Firestore offline persistence | `persistentLocalCache` + multi-tab |
 
-**Exit criteria:** Signed-in strangers can’t read arbitrary chats; long threads load in pages.
+**Status:** Phase 4 complete.  
+**Exit criteria:** Signed-in strangers can’t read arbitrary chats; long threads load in pages.  
+**Note:** Deploy updated `firestore.rules` with `firebase deploy --only firestore:rules`.
 
 ---
 
@@ -148,13 +150,13 @@ Week 11+   Groups, calls, themes, CI — as needed
 
 ---
 
-## What to do **next** (Phase 4)
+## What to do **next** (Phase 5)
 
-1. [ ] Add `participantIds` on chat create + restrict `chats` rules
-2. [ ] Narrow `userChats` update rules (or Cloud Functions)
-3. [ ] Validate message fields in rules
-4. [ ] Move messages to a subcollection + pagination
-5. [ ] Thin Firestore service layer helpers
+1. [ ] Typing indicator
+2. [ ] Online/offline status
+3. [ ] Message delete (own messages)
+4. [ ] A11y + responsive pass
+5. [ ] Light tests / JSDoc for core types
 
 ---
 

@@ -27,7 +27,8 @@ src/
   App.jsx                 # Auth gate + layout shell + error boundary
   main.jsx                # React entry
   lib/
-    firebase.js           # Firebase app, db, auth, storage
+    firebase.js           # Firebase app, db (offline cache), auth, storage
+    chatService.js        # createChat, sendMessage, markSeen, listen/load
     upload.js             # Image upload to Storage (images/{uid}/...)
     formatTime.js         # Message timestamp formatting
     normalizeUser.js      # Ensures user.blocked is always an array
@@ -42,7 +43,7 @@ src/
       chatList/
         ChatList.jsx      # Real-time chat list + search filter
         addUser/AddUser.jsx   # Username search + create chat
-    chat/Chat.jsx         # Message thread + composer (text + images)
+    chat/Chat.jsx         # Message thread + pagination + composer (text + images)
     details/Details.jsx   # Partner info panel (toggle)
     notification/Notification.jsx  # Toast host
 firebase.json             # Firestore/Storage rules deploy config
@@ -166,6 +167,7 @@ Real-time paths:
 - Chat-list filter by username / last message + loading skeleton
 - Real-time chat list and messages
 - Text + **image** messages (upload, bubble, click to open)
+- Messages in `chats/{id}/messages` with scroll-up pagination
 - Last-message preview + sort by `updatedAt`
 - Mark as seen on open + unread list styling
 - Message ids, relative timestamps, Enter to send
@@ -175,6 +177,8 @@ Real-time paths:
 - Details panel toggle; logout from sidebar
 - Toast errors/success on main failure paths
 - Error boundary around authenticated shell
+- Participant-scoped Firestore rules + message field validation
+- `chatService` helpers + Firestore offline persistent cache
 - Firestore + Storage rules in repo (`firebase.json` + deploy docs)
 
 ---

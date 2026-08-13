@@ -64,7 +64,7 @@ Rules in git are not live until you deploy them to the Firebase project.
 
 ## Firestore collections
 
-Firestore is document/collection based (not SQL tables). This app uses three collections.
+Firestore is document/collection based (not SQL tables). This app uses three top-level collections plus a messages subcollection. Client helpers live in `src/lib/chatService.js`. Offline cache is enabled via `persistentLocalCache` in `firebase.js`.
 
 ### 1. `users/{userId}`
 
@@ -110,34 +110,38 @@ Document ID = Firebase Auth UID. One document per user: their sidebar chat list.
 
 Created empty (`chats: []`) at sign-up. Updated when:
 
-- A chat is created (`AddUser.jsx` — `arrayUnion` on both users)
-- A message is sent (`Chat.jsx` — updates both participants’ entries)
-- A chat is opened (`Chat.jsx` — marks own entry `isSeen: true`)
+- A chat is created (`createChat` in `chatService.js`)
+- A message is sent (`syncSidebarPreview`)
+- A chat is opened (`markChatAsSeen`)
 
 Listened with `onSnapshot` in `ChatList.jsx`.
 
 ### 3. `chats/{chatId}`
 
-Shared conversation document. ID is auto-generated (`doc(collection(db, "chats"))`).
+Shared conversation metadata. ID is auto-generated.
 
 ```javascript
 {
-  createdAt: Timestamp,   // serverTimestamp() on create
-  messages: [
-    {
-      id: "uuid",           // crypto.randomUUID() on send (older msgs may lack id)
-      senderId: "user_uid",
-      text: "Hello!",       // may be "" for image-only messages
-      img: "https://...",   // optional Storage download URL
-      createdAt: Date        // client Date; stored as Timestamp in Firestore
-    }
-  ]
+  createdAt: Timestamp,
+  participantIds: ["uid_a", "uid_b"]  // used by security rules
 }
 ```
 
-Messages live in a single array on the document (`arrayUnion` on send). Fine for small threads; will not scale well without pagination / subcollections.
+### 4. `chats/{chatId}/messages/{messageId}`
 
-Listened with `onSnapshot` in `Chat.jsx`.
+One document per message (paginated in the client).
+
+```javascript
+{
+  id: "uuid",             // same as document ID
+  senderId: "user_uid",   // must equal auth.uid on create
+  text: "Hello!",         // string, max 2000 chars (may be "")
+  img: "https://...",     // optional
+  createdAt: Timestamp    // serverTimestamp() on send
+}
+```
+
+`Chat.jsx` listens to the newest page (`orderBy createdAt desc`, limit 30) and loads older pages on scroll-up. Opening a chat migrates any legacy `messages[]` array on the parent doc into this subcollection.
 
 ---
 
@@ -152,10 +156,10 @@ users/alice          users/bob
            \                /
             \              /
              chats/chat_xyz
-               messages[]
+               messages/{id}
 ```
 
-- One `chats` doc holds the full message history.
+- One `chats` doc holds metadata (`participantIds`); messages are a subcollection.
 - Each participant has their own `userChats` entry with the same `chatId` and a different `receiverId`.
 
 Details and step-by-step flows: [chat-flow.md](./chat-flow.md).
@@ -198,16 +202,19 @@ No social providers, password reset, or email verification yet.
 
 ```
 users/{userId}
-  read:   any signed-in user
-  create/update: only owner (auth.uid == userId)
+  read: signed-in; create/update: owner
 
 userChats/{userId}
-  read:   any signed-in user
-  create: only owner
-  update: any signed-in user   // needed so sender can update receiver's lastMessage
+  read: signed-in; create: owner
+  update: owner OR signed-in patch that only changes `chats`
 
 chats/{chatId}
-  read/write: any signed-in user
+  create: signed-in creator in participantIds (size 2)
+  read/update: participant (legacy docs without participantIds still open)
+  messages/{messageId}
+    read: chat participant
+    create: participant + senderId == auth.uid + field validation
+    update/delete: denied
 ```
 
 ### Storage (`storage.rules`)
@@ -217,7 +224,7 @@ images/{userId}/**   read: signed-in; write: owner uid + image/* + <5MB
 images/{fileName}    read: signed-in; write: denied (legacy)
 ```
 
-Firestore rules are still broad (any signed-in user can read/write chats). Storage writes are owner-scoped. Deploy after changing rules files.
+Deploy after changing rules files (`firebase deploy --only firestore:rules,storage`).
 
 ---
 
@@ -246,10 +253,10 @@ No composite indexes are required for the current code. Add indexes if you later
 
 ## Quirks and limits to know
 
-1. **Messages as arrays:** whole message list is unioned on one document — cost and size grow with history.
-2. **Username uniqueness:** enforced in the client after Auth create (rules require auth to read `users`); roll back deletes the Auth user if the name is taken. Not enforced in security rules.
-3. **Legacy chat docs:** older documents may still have misspelled `creterdAt` or messages without `id` (UI falls back for keys).
-4. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
+1. **Username uniqueness:** enforced in the client after Auth create (rules require auth to read `users`); roll back deletes the Auth user if the name is taken. Not enforced in security rules.
+2. **Legacy chat docs:** may lack `participantIds` (rules stay open for those) or still have a `messages[]` array (migrated on open).
+3. **Env:** only `VITE_API_KEY` is externalized; other Firebase config fields are hardcoded in `firebase.js`.
+4. **Rules must be deployed** for production to match the repo.
 
 Duplicate 1:1 chats are blocked in the client (existing `receiverId` check + sync create lock). Not enforced in security rules.
 
@@ -259,12 +266,13 @@ Duplicate 1:1 chats are blocked in the client (existing `receiverId` check + syn
 
 | File | Role |
 |------|------|
-| `src/lib/firebase.js` | Init + exports |
+| `src/lib/firebase.js` | Init + persistent cache + exports |
+| `src/lib/chatService.js` | createChat, sendMessage, markSeen, listen/load |
 | `src/lib/upload.js` | Storage helper |
 | `src/lib/formatTime.js` | Relative/absolute message timestamps |
 | `src/lib/userStore.js` | Load `users/{uid}` |
 | `src/lib/chatStore.js` | Active chat + block flags (client-side) |
 | `src/components/login/Login.jsx` | Auth + initial Firestore docs |
 | `src/components/list/chatList/*` | `userChats` listen + create chat |
-| `src/components/chat/Chat.jsx` | `chats` listen + send |
+| `src/components/chat/Chat.jsx` | Messages subcollection + pagination |
 | `firestore.rules` / `storage.rules` | Access control |

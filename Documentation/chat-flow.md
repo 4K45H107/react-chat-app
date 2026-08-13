@@ -8,30 +8,31 @@ Data shapes and security rules: [firebase.md](./firebase.md).
 
 ## Architecture in one picture
 
-Each conversation = **one shared `chats` document** + **one `userChats` entry per participant**.
+Each conversation = **one shared `chats` doc** + **messages subcollection** + **one `userChats` entry per participant**.
 
 ```
 Alice adds Bob
         │
         ▼
-  chats/chat_xyz  { messages: [] }
+  chats/chat_xyz  { participantIds: [alice, bob] }
         │
+        ├─ messages/{id} …
         ├─ userChats/alice  → { chatId, receiverId: bob, ... }
         └─ userChats/bob    → { chatId, receiverId: alice, ... }
 ```
 
+Firestore access helpers: `src/lib/chatService.js`.
+
 ---
 
-## Flow 1 — Create a chat (`AddUser.jsx`)
+## Flow 1 — Create a chat (`AddUser.jsx` → `createChat`)
 
 Triggered after an exact username search and clicking **+**.
 
 1. Reject empty username; reject searching/adding yourself.
-2. Read own `userChats` — if an entry already has this `receiverId`, toast and stop.
-3. Create `chats/{newId}` with `createdAt: serverTimestamp()` and empty `messages`.
-4. `arrayUnion` onto **receiver’s** `userChats`: `receiverId = currentUser.id`.
-5. `arrayUnion` onto **current user’s** `userChats`: `receiverId = other user’s id`.
-6. Toast success; close modal; both clients’ `ChatList` snapshots refresh.
+2. `hasExistingChatWith` — if own `userChats` already has this `receiverId`, toast and stop.
+3. `createChat` → `chats/{newId}` with `participantIds` + both `userChats` entries.
+4. Toast success; close modal; both clients’ `ChatList` snapshots refresh.
 
 Guards:
 
@@ -75,54 +76,35 @@ Mobile back: `closeChat()` clears the store so the list is primary again. Logout
 
 ---
 
-## Flow 4 — Send a message (`Chat.jsx` → `handleSend`)
+## Flow 4 — Send a message (`Chat.jsx` → `sendMessage`)
 
 Skipped if text empty, no partner, or either block flag is set.
 
-**Step A — shared thread**
+**Step A — message doc**
 
 ```javascript
-await updateDoc(doc(db, "chats", chatId), {
-  messages: arrayUnion({
-    id: crypto.randomUUID(),
-    senderId: currentUser.id,
-    text,
-    createdAt: new Date(),
-  }),
-});
+await sendMessage({ chatId, senderId, text, img? });
+// → setDoc(chats/{chatId}/messages/{id}, { id, senderId, text, img?, createdAt })
 ```
 
-Composer: **Enter** sends text; **Shift+Enter** reserved for future multiline. Image icon opens a file picker → Storage upload → message with optional `img` + caption; sidebar preview uses caption or `"Photo"`. Bubbles show images (click opens full URL) and `formatMessageTime(createdAt)`. React keys use `message.id` when present.
+Composer: **Enter** sends text; **Shift+Enter** reserved for future multiline. Image icon → Storage upload → message with optional `img` + caption; sidebar preview uses caption or `"Photo"`.
 
-**Step B — both sidebars**
+**Step B — both sidebars** via `syncSidebarPreview` (same lastMessage / isSeen / updatedAt behavior as before).
 
-For each of `[currentUser.id, user.id]`:
-
-1. `getDoc(userChats/{participantId})`
-2. Find entry where `chatId` matches
-3. Set `lastMessage`, `updatedAt = Date.now()`, `isSeen = (participantId === currentUser.id)`
-4. `updateDoc` that participant’s `chats` array
-
-Sender’s sidebar entry is marked seen; receiver’s is not. Opening a chat runs a mark-as-seen update on the current user’s `userChats` entry (`Chat.jsx` mount effect). Unread rows are styled in `ChatList`.
-
-Failures on a single sidebar update are logged; the message may still exist in `chats`.
+Opening a chat calls `markChatAsSeen`. Unread rows are styled in `ChatList`.
 
 Empty thread (no messages, not blocked) shows “No messages yet…” copy.
 
 ---
 
-## Flow 5 — Live message updates (`Chat.jsx`)
+## Flow 5 — Live messages + pagination (`Chat.jsx`)
 
 ```javascript
-useEffect(() => {
-  const unsub = onSnapshot(doc(db, "chats", chatId), (res) => {
-    setChat(res.data());
-  });
-  return () => unsub();
-}, [chatId]);
+listenLatestMessages(chatId, { onData }); // newest 30, orderBy createdAt desc
+// scroll near top → loadOlderMessages(chatId, oldestDoc)
 ```
 
-Changing conversations remounts the listener for the new `chatId`. The message list auto-scrolls when `chat.messages` changes.
+On open, `migrateLegacyMessages` moves any old `messages[]` array into the subcollection. Auto-scroll sticks to the bottom unless the user has scrolled up.
 
 ---
 
