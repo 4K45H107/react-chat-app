@@ -124,6 +124,14 @@
       text-align: center;
     }
 
+    .loadOlderHint {
+      align-self: center;
+      padding: 4px 12px;
+      color: #8f8f8f;
+      font-size: 12px;
+      font-weight: 300;
+    }
+
     .message {
       max-width: 78%;
       display: flex;

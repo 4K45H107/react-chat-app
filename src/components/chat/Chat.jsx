@@ -8,11 +8,14 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
 } from "firebase/firestore";
 import { useChatStore } from "../../lib/chatStore";
@@ -20,11 +23,22 @@ import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
 
+const PAGE_SIZE = 30;
+
+const mapMessageDocs = (docs) =>
+  docs.map((messageDoc) => ({
+    id: messageDoc.id,
+    ...messageDoc.data(),
+  }));
+
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [latestMessages, setLatestMessages] = useState([]);
+  const [olderMessages, setOlderMessages] = useState([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   const {
     chatId,
@@ -39,14 +53,35 @@ const Chat = () => {
   const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
 
   const endRef = useRef(null);
+  const centerRef = useRef(null);
   const emojiRef = useRef(null);
   const imageInputRef = useRef(null);
   const migratedRef = useRef(new Set());
+  const oldestDocRef = useRef(null);
+  const hasLoadedOlderRef = useRef(false);
+  const shouldStickToBottomRef = useRef(true);
+  const isLoadingOlderRef = useRef(false);
 
-  // Scroll to the latest message whenever the message list updates
+  const olderIds = new Set(olderMessages.map((message) => message.id));
+  const messages = [
+    ...olderMessages,
+    ...latestMessages.filter((message) => !olderIds.has(message.id)),
+  ];
+
+  // Reset pagination state when switching conversations
   useEffect(() => {
+    setLatestMessages([]);
+    setOlderMessages([]);
+    setHasMore(false);
+    oldestDocRef.current = null;
+    hasLoadedOlderRef.current = false;
+    shouldStickToBottomRef.current = true;
+  }, [chatId]);
+
+  useEffect(() => {
+    if (!shouldStickToBottomRef.current || isLoadingOlder) return;
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoadingOlder]);
 
   // One-time migrate legacy messages[] on the chat doc into the subcollection
   useEffect(() => {
@@ -93,21 +128,24 @@ const Chat = () => {
     migrateLegacyMessages();
   }, [chatId]);
 
+  // Live listener for the newest page of messages
   useEffect(() => {
     const messagesQuery = query(
       collection(db, "chats", chatId, "messages"),
-      orderBy("createdAt", "asc")
+      orderBy("createdAt", "desc"),
+      limit(PAGE_SIZE)
     );
 
     const unsub = onSnapshot(
       messagesQuery,
       (snap) => {
-        setMessages(
-          snap.docs.map((messageDoc) => ({
-            id: messageDoc.id,
-            ...messageDoc.data(),
-          }))
-        );
+        setLatestMessages(mapMessageDocs(snap.docs).reverse());
+
+        // Don't reset the older-page cursor after the user has scrolled up
+        if (!hasLoadedOlderRef.current) {
+          oldestDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+          setHasMore(snap.docs.length === PAGE_SIZE);
+        }
       },
       (error) => {
         console.error(
@@ -121,6 +159,74 @@ const Chat = () => {
 
     return () => unsub();
   }, [chatId]);
+
+  const loadOlderMessages = async () => {
+    if (
+      !chatId ||
+      !hasMore ||
+      !oldestDocRef.current ||
+      isLoadingOlderRef.current
+    ) {
+      return;
+    }
+
+    isLoadingOlderRef.current = true;
+    hasLoadedOlderRef.current = true;
+    setIsLoadingOlder(true);
+    shouldStickToBottomRef.current = false;
+
+    const centerEl = centerRef.current;
+    const previousHeight = centerEl?.scrollHeight ?? 0;
+    const previousTop = centerEl?.scrollTop ?? 0;
+
+    try {
+      const olderQuery = query(
+        collection(db, "chats", chatId, "messages"),
+        orderBy("createdAt", "desc"),
+        startAfter(oldestDocRef.current),
+        limit(PAGE_SIZE)
+      );
+      const snap = await getDocs(olderQuery);
+      const batch = mapMessageDocs(snap.docs).reverse();
+
+      if (batch.length) {
+        setOlderMessages((prev) => [...batch, ...prev]);
+        oldestDocRef.current = snap.docs[snap.docs.length - 1];
+      }
+
+      setHasMore(snap.docs.length === PAGE_SIZE);
+
+      requestAnimationFrame(() => {
+        if (!centerEl) return;
+        centerEl.scrollTop =
+          centerEl.scrollHeight - previousHeight + previousTop;
+      });
+    } catch (error) {
+      console.error(
+        "[Chat] Failed to load older messages:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to load older messages.");
+    } finally {
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+  };
+
+  const handleCenterScroll = () => {
+    const centerEl = centerRef.current;
+    if (!centerEl) return;
+
+    const distanceFromBottom =
+      centerEl.scrollHeight - centerEl.scrollTop - centerEl.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 80;
+
+    if (centerEl.scrollTop < 80) {
+      loadOlderMessages();
+    }
+  };
 
   // Mark this conversation as seen in the current user's sidebar
   useEffect(() => {
@@ -217,6 +323,7 @@ const Chat = () => {
     if (text === "" || !user || isChatBlocked || isSending) return;
 
     setIsSending(true);
+    shouldStickToBottomRef.current = true;
     try {
       await writeMessage({ text });
       await syncSidebarPreview(text);
@@ -245,6 +352,7 @@ const Chat = () => {
     }
 
     setIsSending(true);
+    shouldStickToBottomRef.current = true;
     try {
       const imgUrl = await upload(file, { uid: currentUser.id });
       if (!imgUrl) {
@@ -313,7 +421,11 @@ const Chat = () => {
       </div>
 
       {/* ------ CENTER ------ */}
-      <div className="center">
+      <div className="center" ref={centerRef} onScroll={handleCenterScroll}>
+        {isLoadingOlder && <p className="loadOlderHint">Loading earlier messages…</p>}
+        {!hasMore && messages.length > 0 && (
+          <p className="loadOlderHint">Beginning of conversation</p>
+        )}
         {isChatBlocked && (
           <p className="blockedNotice">
             {isCurrentUserBlocked
@@ -353,8 +465,8 @@ const Chat = () => {
             </div>
           </div>
         ))}
+        <div ref={endRef} />
       </div>
-      <div ref={endRef}></div>
       {/* Disable composer when either party has blocked the other */}
       <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
         <div className="icons">
