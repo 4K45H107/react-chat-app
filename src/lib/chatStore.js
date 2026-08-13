@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useUserStore } from "./userStore";
 import { normalizeUser } from "./normalizeUser";
+import { getBlockFlags } from "./blockFlags";
 
 const emptyChatState = {
   chatId: null,
@@ -20,32 +21,18 @@ export const useChatStore = create((set) => ({
 
     // Selecting a chat opens the conversation only — details stays closed
     // until the user toggles it from the chat header.
-    const next = {
+    const { isCurrentUserBlocked, isReceiverBlocked } = getBlockFlags(
+      currentUser,
+      partner
+    );
+
+    set({
       chatId,
       user: partner,
-      isCurrentUserBlocked: false,
-      isReceiverBlocked: false,
+      isCurrentUserBlocked,
+      isReceiverBlocked,
       showDetails: false,
-    };
-
-    // blocked is always an array after normalizeUser — safe to call .includes()
-    if (partner.blocked.includes(currentUser.id)) {
-      set({
-        ...next,
-        isCurrentUserBlocked: true,
-      });
-      return;
-    }
-
-    if (currentUser.blocked.includes(partner.id)) {
-      set({
-        ...next,
-        isReceiverBlocked: true,
-      });
-      return;
-    }
-
-    set(next);
+    });
   },
 
   changeBlock: () => {
