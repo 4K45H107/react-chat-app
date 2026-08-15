@@ -15,6 +15,8 @@ import {
 } from "../../../lib/notifications";
 
 const loadUserProfile = async (userId) => {
+  if (!userId || typeof userId !== "string") return null;
+
   try {
     const userDocSnap = await getDoc(doc(db, "users", userId));
     if (!userDocSnap.exists()) return null;
@@ -69,7 +71,7 @@ const ChatList = () => {
                   chatData.avatar || item.groupAvatar || null;
 
                 const otherIds = participantIds.filter(
-                  (id) => id !== currentUser.id
+                  (id) => typeof id === "string" && id && id !== currentUser.id
                 );
                 const members = (
                   await Promise.all(

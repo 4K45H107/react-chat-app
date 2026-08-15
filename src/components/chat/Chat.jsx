@@ -397,23 +397,61 @@ const Chat = () => {
           const file = new File([blob], `voice.${ext}`, {
             type: blob.type || "audio/webm",
           });
-          const audioUrl = await upload(file, {
-            uid: currentUser.id,
-            folder: "audio",
-            fileName: `voice.${ext}`,
-          });
+          let audioUrl;
+          try {
+            audioUrl = await upload(file, {
+              uid: currentUser.id,
+              folder: "audio",
+              fileName: `voice.${ext}`,
+            });
+          } catch (uploadError) {
+            console.error(
+              "[Chat] Voice upload failed:",
+              uploadError.code || uploadError,
+              uploadError.message || uploadError
+            );
+            if (
+              String(uploadError.code || uploadError).includes("permission") ||
+              String(uploadError).includes("permission")
+            ) {
+              toast.error(
+                "Voice upload blocked. Deploy Storage rules (audio path)."
+              );
+            } else {
+              toast.error("Failed to upload voice message. Please try again.");
+            }
+            return;
+          }
+
           if (!audioUrl) {
             toast.error("Failed to upload voice message. Please try again.");
             return;
           }
 
-          await sendMessage({
-            chatId,
-            senderId: currentUser.id,
-            text: "",
-            audio: audioUrl,
-            audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
-          });
+          try {
+            await sendMessage({
+              chatId,
+              senderId: currentUser.id,
+              text: "",
+              audio: audioUrl,
+              audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
+            });
+          } catch (sendError) {
+            console.error(
+              "[Chat] Voice message write failed:",
+              sendError.code || sendError,
+              sendError.message || sendError
+            );
+            if (sendError.code === "permission-denied") {
+              toast.error(
+                "Voice message blocked. Deploy updated Firestore rules."
+              );
+            } else {
+              toast.error("Failed to send voice message. Please try again.");
+            }
+            return;
+          }
+
           await syncSidebarPreview({
             chatId,
             currentUserId: currentUser.id,
