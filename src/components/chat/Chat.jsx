@@ -19,6 +19,7 @@ import {
   syncSidebarPreview,
 } from "../../lib/chatService";
 import { isUserOnline, listenUserPresence } from "../../lib/presence";
+import { getStoredTheme } from "../../lib/theme";
 
 const TYPING_TTL_MS = 4000;
 
@@ -799,11 +800,18 @@ const Chat = () => {
               !isChatBlocked && !isSending && setOpenEmoji((prev) => !prev)
             }
           >
-            <img src="./emoji.png" alt="" aria-hidden="true" />
+            <span className="emojiGlyph" aria-hidden="true">
+              😊
+            </span>
           </button>
           {openEmoji && !isChatBlocked && (
             <div className="picker" role="dialog" aria-label="Emoji picker">
-              <EmojiPicker theme={Theme.DARK} onEmojiClick={handleEmoji} />
+              <EmojiPicker
+                theme={
+                  getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
+                }
+                onEmojiClick={handleEmoji}
+              />
             </div>
           )}
         </div>

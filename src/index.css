@@ -4,7 +4,7 @@
   --color-muted: #a7a7a7;
   --color-surface: rgba(17, 25, 40, 0.75);
   --color-surface-solid: rgba(17, 25, 40, 0.9);
-  --color-border: #dddddd35;
+  --color-border: rgba(221, 221, 221, 0.28);
   --color-primary: #2462e7;
   --color-primary-hover: #1b4cb6;
   --color-on-primary: #ffffff;
@@ -24,7 +24,7 @@
   --color-muted: #5b6577;
   --color-surface: rgba(245, 248, 252, 0.94);
   --color-surface-solid: #ffffff;
-  --color-border: rgba(28, 36, 52, 0.14);
+  --color-border: rgba(28, 36, 52, 0.22);
   --color-primary: #1f5fd6;
   --color-primary-hover: #1849a8;
   --color-on-primary: #ffffff;
