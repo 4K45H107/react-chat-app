@@ -1,7 +1,7 @@
 .chat {
   flex: 2;
-  border-left: 1px solid #dddddd35;
-  border-right: 1px solid #dddddd35;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
   height: 100%;
   min-width: 0;
   display: flex;

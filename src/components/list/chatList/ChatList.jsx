@@ -218,7 +218,7 @@ const ChatList = () => {
           <div
             className={`item${!chat.isSeen ? " unread" : ""}${
               chat.muted ? " muted" : ""
-            }`}
+            }${chat.chatId === chatId ? " selected" : ""}`}
             key={chat.chatId}
             onClick={() => handleSelectChat(chat)}
             onKeyDown={(e) => {
@@ -229,11 +229,12 @@ const ChatList = () => {
             }}
             role="button"
             tabIndex={0}
+            aria-current={chat.chatId === chatId ? "true" : undefined}
             aria-label={`Open chat with ${chat.user.username}${
               !chat.isSeen ? ", unread" : ""
             }${chat.muted ? ", muted" : ""}${
               chat.archived ? ", archived" : ""
-            }`}
+            }${chat.chatId === chatId ? ", selected" : ""}`}
           >
             <img
               src={chat.user.avatar || "./avatar.png"}

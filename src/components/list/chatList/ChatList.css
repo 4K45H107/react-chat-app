@@ -154,7 +154,7 @@
     }
 
     &.unread {
-      background-color: rgb(17, 25, 40, 0.35);
+      background-color: var(--color-control-bg);
 
       .texts {
         span {
@@ -163,9 +163,28 @@
 
         p {
           font-weight: 500;
-          color: #e8e8e8;
+          color: var(--color-text);
         }
       }
+    }
+
+    &.selected {
+      background-color: var(--color-bubble-own);
+      box-shadow: inset 3px 0 0 var(--color-primary);
+
+      .texts {
+        span {
+          font-weight: 600;
+        }
+
+        p {
+          color: var(--color-text);
+        }
+      }
+    }
+
+    &:hover:not(.selected) {
+      background-color: var(--color-control-bg-hover);
     }
   }
 

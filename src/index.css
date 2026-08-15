@@ -16,26 +16,29 @@
   --focus-ring: #8ec7ff;
   --body-bg-color: #0b1220;
   --body-bg-image: url("/bg.jpg");
+  --backdrop-filter: blur(8px) saturate(180%);
   --icon-filter: none;
 }
 
 [data-theme="light"] {
   --color-text: #1c2434;
   --color-muted: #5b6577;
-  --color-surface: rgba(245, 248, 252, 0.94);
-  --color-surface-solid: #ffffff;
-  --color-border: rgba(28, 36, 52, 0.28);
+  /* Translucent glass so the page background shows through */
+  --color-surface: rgba(255, 255, 255, 0.52);
+  --color-surface-solid: rgba(255, 255, 255, 0.78);
+  --color-border: rgba(28, 36, 52, 0.22);
   --color-primary: #1f5fd6;
   --color-primary-hover: #1849a8;
   --color-on-primary: #ffffff;
-  --color-control-bg: rgba(28, 36, 52, 0.12);
-  --color-control-bg-hover: rgba(28, 36, 52, 0.2);
-  --color-bubble: rgba(28, 36, 52, 0.08);
-  --color-bubble-own: rgba(31, 95, 214, 0.16);
-  --color-meta: #667085;
+  --color-control-bg: rgba(255, 255, 255, 0.45);
+  --color-control-bg-hover: rgba(255, 255, 255, 0.62);
+  --color-bubble: rgba(255, 255, 255, 0.55);
+  --color-bubble-own: rgba(31, 95, 214, 0.22);
+  --color-meta: #5b6577;
   --focus-ring: #1f5fd6;
-  --body-bg-color: #c9d7ea;
-  --body-bg-image: none;
+  --body-bg-color: #e8ebe3;
+  --body-bg-image: url("/bg-light.jpg");
+  --backdrop-filter: blur(12px) saturate(160%);
   /* Many chrome PNGs are drawn for dark UI */
   --icon-filter: invert(1) brightness(0.2);
 }
@@ -89,7 +92,8 @@ body.emoji-picker-open {
   height: 90dvh;
   max-width: 1400px;
   background-color: var(--color-surface);
-  backdrop-filter: blur(7px) saturate(180%);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border-radius: 10px;
   border: 1px solid var(--color-border);
   display: flex;
