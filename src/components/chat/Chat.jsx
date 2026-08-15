@@ -559,7 +559,31 @@ const Chat = () => {
             aria-label={threadSearchOpen ? "Close message search" : "Search in chat"}
             aria-pressed={threadSearchOpen}
           >
-            <img src="./search.png" alt="" aria-hidden="true" />
+            <svg
+              className="chromeIcon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <circle
+                cx="11"
+                cy="11"
+                r="6.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="16"
+                y1="16"
+                x2="20.5"
+                y2="20.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
           <img src="./phone.png" alt="" aria-hidden="true" />
           <img src="./video.png" alt="" aria-hidden="true" />

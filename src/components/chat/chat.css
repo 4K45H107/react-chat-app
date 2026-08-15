@@ -91,6 +91,11 @@
         border: none;
         background: transparent;
         cursor: pointer;
+        color: var(--color-text);
+
+        .chromeIcon {
+          display: block;
+        }
       }
 
       img {

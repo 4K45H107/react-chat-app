@@ -144,7 +144,27 @@ const ChatList = () => {
     <div className="chatList">
       <div className="search">
         <div className="searchBar">
-          <img src="./search.png" alt="" aria-hidden="true" />
+          <span className="searchIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <circle
+                cx="11"
+                cy="11"
+                r="6.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="16"
+                y1="16"
+                x2="20.5"
+                y2="20.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
           <input
             type="search"
             placeholder="Search"
@@ -160,11 +180,9 @@ const ChatList = () => {
           aria-label={addMode ? "Close add user" : "Add user"}
           aria-expanded={addMode}
         >
-          <img
-            src={!addMode ? "./plus.png" : "./minus.png"}
-            alt=""
-            aria-hidden="true"
-          />
+          <span className="addGlyph" aria-hidden="true">
+            {addMode ? "−" : "+"}
+          </span>
         </button>
       </div>
 

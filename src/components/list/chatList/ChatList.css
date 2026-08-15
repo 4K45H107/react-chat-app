@@ -14,12 +14,29 @@
 
     .searchBar {
       flex: 1;
+      min-width: 0;
       background-color: var(--color-control-bg);
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 10px;
       border-radius: 10px;
-      padding: 10px;
+      border: 1px solid var(--color-border);
+      padding: 10px 12px;
+
+      .searchIcon {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-muted);
+        line-height: 0;
+
+        svg {
+          display: block;
+        }
+      }
 
       input {
         background-color: transparent;
@@ -27,31 +44,36 @@
         outline: none;
         color: var(--color-text);
         flex: 1;
-      }
+        min-width: 0;
+        font-size: 14px;
 
-      img {
-        width: 20px;
-        height: 20px;
-        filter: var(--icon-filter);
+        &::placeholder {
+          color: var(--color-muted);
+        }
       }
     }
     .add {
       width: 36px;
       height: 36px;
       background-color: var(--color-control-bg);
-      padding: 8px;
+      padding: 0;
       border-radius: 10px;
-      border: none;
+      border: 1px solid var(--color-border);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      color: var(--color-text);
+      flex-shrink: 0;
 
-      img {
-        width: 20px;
-        height: 20px;
-        display: block;
-        filter: var(--icon-filter);
+      .addGlyph {
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 500;
+      }
+
+      &:hover {
+        background-color: var(--color-control-bg-hover);
       }
     }
   }
