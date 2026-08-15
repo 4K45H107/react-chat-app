@@ -57,10 +57,10 @@
       .settingBtn {
         flex: 1;
         padding: 10px 12px;
-        border: none;
+        border: 1px solid var(--color-border);
         border-radius: 8px;
-        background-color: rgba(17, 25, 40, 0.45);
-        color: white;
+        background-color: var(--color-control-bg);
+        color: var(--color-text);
         cursor: pointer;
 
         &:disabled {
@@ -121,6 +121,7 @@
       outline: none;
       border-radius: 5px;
       cursor: pointer;
+      color: var(--color-on-primary);
 
       &:hover {
         background-color: #a72727;

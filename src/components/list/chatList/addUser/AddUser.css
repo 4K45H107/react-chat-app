@@ -13,8 +13,8 @@
   flex-direction: column;
   gap: 12px;
   padding: 40px 28px 20px;
-  background-color: rgba(17, 25, 40, 0.95);
-  border: 1px solid #dddddd35;
+  background-color: var(--color-surface-solid);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   position: fixed;
   top: 50%;
@@ -22,6 +22,7 @@
   transform: translate(-50%, -50%);
   z-index: 21;
   box-sizing: border-box;
+  color: var(--color-text);
 
   .closeBtn {
     position: absolute;
@@ -31,8 +32,8 @@
     height: 28px;
     border: none;
     border-radius: 50%;
-    background-color: rgb(17, 25, 40, 0.5);
-    color: white;
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -44,7 +45,7 @@
   }
 
   .searchLabel {
-    color: #cfcfcf;
+    color: var(--color-muted);
     font-size: 13px;
   }
 
@@ -53,10 +54,10 @@
     box-sizing: border-box;
     padding: 14px 16px;
     border-radius: 10px;
-    border: none;
+    border: 1px solid var(--color-border);
     outline: none;
-    background-color: rgb(17, 25, 40, 0.5);
-    color: white;
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
 
     &:disabled {
       opacity: 0.7;
@@ -77,7 +78,7 @@
 
   .listHint {
     margin: 12px 0;
-    color: #a8a8a8;
+    color: var(--color-muted);
     font-size: 14px;
     text-align: center;
   }
@@ -92,7 +93,7 @@
     border-radius: 10px;
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.04);
+      background-color: var(--color-control-bg);
     }
 
     .details {
@@ -111,7 +112,7 @@
       }
 
       span {
-        color: white;
+        color: var(--color-text);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -123,12 +124,12 @@
       height: 36px;
       flex-shrink: 0;
       font-size: 20px;
-      background-color: rgb(17, 25, 40, 0.5);
+      background-color: var(--color-control-bg);
       border-radius: 10px;
       cursor: pointer;
-      border: none;
+      border: 1px solid var(--color-border);
       outline: none;
-      color: white;
+      color: var(--color-text);
 
       &:disabled {
         opacity: 0.55;

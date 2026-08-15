@@ -11,8 +11,8 @@
   max-height: min(80vh, 80dvh);
   overflow-y: auto;
   padding: 40px 28px 28px;
-  background-color: rgba(17, 25, 40, 0.95);
-  border: 1px solid #dddddd35;
+  background-color: var(--color-surface-solid);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   position: fixed;
   top: 50%;
@@ -20,7 +20,7 @@
   transform: translate(-50%, -50%);
   z-index: 21;
   box-sizing: border-box;
-  color: white;
+  color: var(--color-text);
 
   .closeBtn {
     position: absolute;
@@ -30,8 +30,8 @@
     height: 28px;
     border: none;
     border-radius: 50%;
-    background-color: rgb(17, 25, 40, 0.5);
-    color: white;
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -59,7 +59,7 @@
     align-items: center;
     gap: 16px;
     cursor: pointer;
-    color: #bdbdbd;
+    color: var(--color-muted);
     text-decoration: underline;
     width: fit-content;
 
@@ -68,13 +68,13 @@
       height: 72px;
       border-radius: 50%;
       object-fit: cover;
-      border: 1px solid #dddddd35;
+      border: 1px solid var(--color-border);
     }
   }
 
   .fieldLabel {
     font-size: 13px;
-    color: #cfcfcf;
+    color: var(--color-muted);
   }
 
   .nameRow {
@@ -89,20 +89,16 @@
       box-sizing: border-box;
       padding: 14px 16px;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--color-border);
       outline: none;
-      background-color: rgba(255, 255, 255, 0.08);
-      color: white;
+      background-color: var(--color-control-bg);
+      color: var(--color-text);
       cursor: default;
-
-      &:read-only {
-        color: #d7d7d7;
-      }
 
       &:not(:read-only) {
         cursor: text;
-        background-color: rgba(255, 255, 255, 0.12);
-        border-color: rgba(126, 182, 255, 0.55);
+        background-color: var(--color-control-bg-hover);
+        border-color: var(--focus-ring);
       }
 
       &:disabled {
@@ -118,15 +114,15 @@
   .editNameBtn {
     flex-shrink: 0;
     padding: 0 14px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
     cursor: pointer;
     font-size: 13px;
 
     &:hover:not(:disabled) {
-      background-color: rgba(255, 255, 255, 0.16);
+      background-color: var(--color-control-bg-hover);
     }
 
     &:disabled {
@@ -137,7 +133,7 @@
   .emailHint {
     margin: 0;
     font-size: 13px;
-    color: #8f8f8f;
+    color: var(--color-muted);
   }
 
   .actions {
@@ -153,18 +149,19 @@
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    color: white;
   }
 
   .cancelBtn {
-    background-color: rgb(17, 25, 40, 0.6);
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
   }
 
   .saveBtn {
-    background-color: #2462e7;
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
 
     &:hover:not(:disabled) {
-      background-color: #1b4cb6;
+      background-color: var(--color-primary-hover);
     }
   }
 

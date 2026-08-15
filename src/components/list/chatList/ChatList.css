@@ -14,7 +14,7 @@
 
     .searchBar {
       flex: 1;
-      background-color: rgb(17, 25, 40, 0.5);
+      background-color: var(--color-control-bg);
       display: flex;
       align-items: center;
       gap: 20px;
@@ -25,19 +25,20 @@
         background-color: transparent;
         border: none;
         outline: none;
-        color: white;
+        color: var(--color-text);
         flex: 1;
       }
 
       img {
         width: 20px;
         height: 20px;
+        filter: var(--icon-filter);
       }
     }
     .add {
       width: 36px;
       height: 36px;
-      background-color: rgb(17, 25, 40, 0.5);
+      background-color: var(--color-control-bg);
       padding: 8px;
       border-radius: 10px;
       border: none;
@@ -50,6 +51,7 @@
         width: 20px;
         height: 20px;
         display: block;
+        filter: var(--icon-filter);
       }
     }
   }
@@ -62,13 +64,13 @@
     .archiveToggle {
       border: none;
       background: transparent;
-      color: #9fbfd9;
+      color: var(--color-primary);
       font-size: 12px;
       cursor: pointer;
       text-decoration: underline;
 
       &.active {
-        color: #cfe3ff;
+        color: var(--color-text);
       }
     }
   }

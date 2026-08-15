@@ -1,28 +1,43 @@
 :root,
 [data-theme="dark"] {
-  --color-text: white;
+  --color-text: #f4f6fb;
   --color-muted: #a7a7a7;
   --color-surface: rgba(17, 25, 40, 0.75);
   --color-surface-solid: rgba(17, 25, 40, 0.9);
   --color-border: #dddddd35;
   --color-primary: #2462e7;
   --color-primary-hover: #1b4cb6;
+  --color-on-primary: #ffffff;
+  --color-control-bg: rgba(17, 25, 40, 0.55);
+  --color-control-bg-hover: rgba(17, 25, 40, 0.75);
+  --color-bubble: rgba(17, 25, 40, 0.5);
+  --color-bubble-own: rgba(55, 115, 168, 0.45);
+  --color-meta: #aaaaaa;
   --focus-ring: #8ec7ff;
   --body-bg-color: #0b1220;
   --body-bg-image: url("/bg.jpg");
+  --icon-filter: none;
 }
 
 [data-theme="light"] {
   --color-text: #1c2434;
   --color-muted: #5b6577;
-  --color-surface: rgba(248, 250, 252, 0.9);
-  --color-surface-solid: rgba(255, 255, 255, 0.96);
-  --color-border: rgba(28, 36, 52, 0.12);
-  --color-primary: #2462e7;
-  --color-primary-hover: #1b4cb6;
-  --focus-ring: #2462e7;
-  --body-bg-color: #d7e3f4;
+  --color-surface: rgba(245, 248, 252, 0.94);
+  --color-surface-solid: #ffffff;
+  --color-border: rgba(28, 36, 52, 0.14);
+  --color-primary: #1f5fd6;
+  --color-primary-hover: #1849a8;
+  --color-on-primary: #ffffff;
+  --color-control-bg: rgba(28, 36, 52, 0.08);
+  --color-control-bg-hover: rgba(28, 36, 52, 0.14);
+  --color-bubble: rgba(28, 36, 52, 0.08);
+  --color-bubble-own: rgba(31, 95, 214, 0.16);
+  --color-meta: #667085;
+  --focus-ring: #1f5fd6;
+  --body-bg-color: #c9d7ea;
   --body-bg-image: none;
+  /* Many chrome PNGs are drawn for dark UI */
+  --icon-filter: invert(1) brightness(0.2);
 }
 
 * {
@@ -125,7 +140,7 @@ body {
   border: none;
   border-radius: 10px;
   background: var(--color-primary);
-  color: white;
+  color: var(--color-on-primary);
   cursor: pointer;
 }
 
