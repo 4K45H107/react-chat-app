@@ -24,12 +24,12 @@
   --color-muted: #5b6577;
   --color-surface: rgba(245, 248, 252, 0.94);
   --color-surface-solid: #ffffff;
-  --color-border: rgba(28, 36, 52, 0.22);
+  --color-border: rgba(28, 36, 52, 0.28);
   --color-primary: #1f5fd6;
   --color-primary-hover: #1849a8;
   --color-on-primary: #ffffff;
-  --color-control-bg: rgba(28, 36, 52, 0.08);
-  --color-control-bg-hover: rgba(28, 36, 52, 0.14);
+  --color-control-bg: rgba(28, 36, 52, 0.12);
+  --color-control-bg-hover: rgba(28, 36, 52, 0.2);
   --color-bubble: rgba(28, 36, 52, 0.08);
   --color-bubble-own: rgba(31, 95, 214, 0.16);
   --color-meta: #667085;

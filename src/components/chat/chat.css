@@ -330,7 +330,7 @@
     margin-top: auto;
     border-top: 1px solid var(--color-border);
 
-    img {
+    > .icons img {
       width: 20px;
       height: 20px;
       cursor: pointer;
@@ -404,6 +404,17 @@
         left: 0;
         z-index: 10;
         color: initial;
+        filter: none;
+
+        /* Never invert emoji-picker assets in light mode */
+        img,
+        svg,
+        canvas {
+          filter: none !important;
+          width: auto;
+          height: auto;
+          cursor: default;
+        }
       }
     }
 

@@ -70,6 +70,7 @@
     gap: 6px;
     font-size: 12px;
     font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(28, 36, 52, 0.04);
 
     svg {
       flex-shrink: 0;

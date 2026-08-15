@@ -74,6 +74,11 @@
         background-color: var(--color-control-bg);
         color: var(--color-text);
         cursor: pointer;
+        font-weight: 600;
+
+        &:hover:not(:disabled) {
+          background-color: var(--color-control-bg-hover);
+        }
 
         &:disabled {
           opacity: 0.55;
