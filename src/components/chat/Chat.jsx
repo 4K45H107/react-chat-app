@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import "./chat.css";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "react-toastify";
@@ -25,6 +26,9 @@ const TYPING_TTL_MS = 4000;
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
+  const [emojiPickerPos, setEmojiPickerPos] = useState({ bottom: 80, left: 16 });
+  const emojiButtonRef = useRef(null);
+  const emojiPickerRef = useRef(null);
   const [text, setText] = useState("");
   const [latestMessages, setLatestMessages] = useState([]);
   const [olderMessages, setOlderMessages] = useState([]);
@@ -54,7 +58,6 @@ const Chat = () => {
   const endRef = useRef(null);
   const centerRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
-  const emojiRef = useRef(null);
   const imageInputRef = useRef(null);
   const migratedRef = useRef(new Set());
   const oldestDocRef = useRef(null);
@@ -354,14 +357,37 @@ const Chat = () => {
   useEffect(() => {
     if (!openEmoji) return;
 
+    const placePicker = () => {
+      const button = emojiButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const pickerWidth = 350;
+      const left = Math.min(
+        Math.max(8, rect.left),
+        window.innerWidth - pickerWidth - 8
+      );
+      setEmojiPickerPos({
+        left,
+        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+      });
+    };
+
+    placePicker();
+    window.addEventListener("resize", placePicker);
+    window.addEventListener("scroll", placePicker, true);
+
     const handleClickOutside = (event) => {
-      if (emojiRef.current && !emojiRef.current.contains(event.target)) {
-        setOpenEmoji(false);
-      }
+      if (emojiButtonRef.current?.contains(event.target)) return;
+      if (emojiPickerRef.current?.contains(event.target)) return;
+      setOpenEmoji(false);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("resize", placePicker);
+      window.removeEventListener("scroll", placePicker, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [openEmoji]);
 
   const handleEmoji = (e) => {
@@ -814,8 +840,9 @@ const Chat = () => {
           disabled={isChatBlocked || isSending}
           aria-label="Message"
         />
-        <div className="emoji" ref={emojiRef}>
+        <div className="emoji">
           <button
+            ref={emojiButtonRef}
             type="button"
             className="emojiToggle"
             aria-label="Open emoji picker"
@@ -829,16 +856,28 @@ const Chat = () => {
               😊
             </span>
           </button>
-          {openEmoji && !isChatBlocked && (
-            <div className="picker" role="dialog" aria-label="Emoji picker">
-              <EmojiPicker
-                theme={
-                  getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
-                }
-                onEmojiClick={handleEmoji}
-              />
-            </div>
-          )}
+          {openEmoji &&
+            !isChatBlocked &&
+            createPortal(
+              <div
+                ref={emojiPickerRef}
+                className="emojiPickerPortal"
+                style={{
+                  left: emojiPickerPos.left,
+                  bottom: emojiPickerPos.bottom,
+                }}
+                role="dialog"
+                aria-label="Emoji picker"
+              >
+                <EmojiPicker
+                  theme={
+                    getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
+                  }
+                  onEmojiClick={handleEmoji}
+                />
+              </div>,
+              document.body
+            )}
         </div>
         <button
           className="sendButton"

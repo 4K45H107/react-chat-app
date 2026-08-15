@@ -402,38 +402,6 @@
           cursor: not-allowed;
         }
       }
-
-      .picker {
-        position: absolute;
-        bottom: 50px;
-        left: 0;
-        z-index: 10;
-        color: initial;
-        filter: none;
-
-        /* Isolate picker from composer styles */
-        input {
-          flex: initial;
-          width: 100%;
-          box-sizing: border-box;
-          background: #fff;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          color: #111;
-          padding: 8px 12px 8px 36px;
-          font-size: 14px;
-        }
-
-        img,
-        svg,
-        canvas {
-          filter: none !important;
-          width: auto;
-          height: auto;
-          max-width: none;
-          cursor: default;
-        }
-      }
     }
 
     .sendButton {
@@ -537,7 +505,7 @@
         height: 18px;
       }
 
-      input {
+      .composerInput {
         font-size: 14px;
         min-width: 0;
       }
@@ -548,4 +516,12 @@
       }
     }
   }
+}
+
+/* Outside .chat so composer CSS can never affect emoji-picker-react */
+.emojiPickerPortal {
+  position: fixed;
+  z-index: 1000;
+  filter: none;
+  color: initial;
 }
