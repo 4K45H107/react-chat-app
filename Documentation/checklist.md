@@ -130,7 +130,7 @@ Do these only after Phases 1–4. No fixed dates.
 | [x] | P3 | Message edit |
 | [x] | P3 | In-thread message search |
 | [x] | P3 | Chat archive / mute |
-| [ ] | P3 | Group chats |
+| [x] | P3 | Group chats |
 | [ ] | P3 | Voice messages |
 | [ ] | P3 | Video / voice calls (replace phone/video placeholders) |
 | [x] | P3 | Themes |

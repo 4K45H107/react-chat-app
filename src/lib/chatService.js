@@ -30,6 +30,7 @@ export const createChat = async ({ currentUserId, otherUserId }) => {
 
   await setDoc(newChatRef, {
     createdAt: serverTimestamp(),
+    type: "direct",
     participantIds: [currentUserId, otherUserId],
   });
 
@@ -62,11 +63,134 @@ export const createChat = async ({ currentUserId, otherUserId }) => {
   return newChatRef.id;
 };
 
-/** Return true if current user already has a chat with receiverId. */
+/**
+ * Create a group chat (creator + at least 2 others) and sidebar entries
+ * for every member.
+ */
+export const createGroupChat = async ({
+  creatorId,
+  name,
+  memberIds = [],
+}) => {
+  const groupName = String(name ?? "").trim();
+  if (!groupName) {
+    throw new Error("Group name is required");
+  }
+
+  const participantIds = [
+    ...new Set(
+      [creatorId, ...memberIds].filter((id) => typeof id === "string" && id)
+    ),
+  ];
+
+  if (participantIds.length < 3) {
+    throw new Error("Pick at least 2 other people for a group");
+  }
+
+  const newChatRef = doc(collection(db, "chats"));
+
+  await setDoc(newChatRef, {
+    createdAt: serverTimestamp(),
+    type: "group",
+    name: groupName,
+    createdBy: creatorId,
+    participantIds,
+  });
+
+  const sidebarEntry = {
+    chatId: newChatRef.id,
+    isGroup: true,
+    groupName,
+    lastMessage: "",
+    updatedAt: Date.now(),
+    muted: false,
+    archived: false,
+  };
+
+  for (const participantId of participantIds) {
+    await updateDoc(doc(db, "userChats", participantId), {
+      chats: arrayUnion(sidebarEntry),
+    });
+  }
+
+  return newChatRef.id;
+};
+
+/** Remove current user from a group and drop their sidebar entry. */
+export const leaveGroupChat = async ({ chatId, userId }) => {
+  const chatRef = doc(db, "chats", chatId);
+  const chatSnap = await getDoc(chatRef);
+  if (!chatSnap.exists()) return;
+
+  const chatData = chatSnap.data();
+  if (chatData.type !== "group") return;
+
+  const participantIds = (chatData.participantIds ?? []).filter(
+    (id) => id !== userId
+  );
+
+  await updateDoc(chatRef, { participantIds });
+
+  const userChatsRef = doc(db, "userChats", userId);
+  const userChatsSnap = await getDoc(userChatsRef);
+  if (!userChatsSnap.exists()) return;
+
+  const chats = (userChatsSnap.data().chats ?? []).filter(
+    (chat) => chat.chatId !== chatId
+  );
+  await updateDoc(userChatsRef, { chats });
+};
+
+/** Set group avatar on the chat doc and denormalize to each member's sidebar. */
+export const updateGroupAvatar = async ({ chatId, avatarUrl, currentUserId }) => {
+  const url = String(avatarUrl ?? "").trim();
+  if (!url) return;
+
+  const chatRef = doc(db, "chats", chatId);
+  const chatSnap = await getDoc(chatRef);
+  if (!chatSnap.exists()) return;
+
+  const chatData = chatSnap.data();
+  if (chatData.type !== "group") return;
+  if (!(chatData.participantIds ?? []).includes(currentUserId)) {
+    throw new Error("Not a group member");
+  }
+
+  await updateDoc(chatRef, { avatar: url });
+
+  for (const participantId of chatData.participantIds ?? []) {
+    try {
+      const userChatsRef = doc(db, "userChats", participantId);
+      const userChatsSnap = await getDoc(userChatsRef);
+      if (!userChatsSnap.exists()) continue;
+
+      const chats = [...(userChatsSnap.data().chats ?? [])];
+      const chatIndex = chats.findIndex((c) => c.chatId === chatId);
+      if (chatIndex === -1) continue;
+
+      chats[chatIndex] = {
+        ...chats[chatIndex],
+        groupAvatar: url,
+      };
+      await updateDoc(userChatsRef, { chats });
+    } catch (error) {
+      console.warn(
+        "[chatService] Failed to sync group avatar for participant:",
+        participantId,
+        error.code,
+        error.message
+      );
+    }
+  }
+};
+
+/** Return true if current user already has a 1:1 chat with receiverId. */
 export const hasExistingChatWith = async (currentUserId, receiverId) => {
   const snap = await getDoc(doc(db, "userChats", currentUserId));
   const chats = snap.data()?.chats ?? [];
-  return chats.some((chat) => chat.receiverId === receiverId);
+  return chats.some(
+    (chat) => !chat.isGroup && chat.receiverId === receiverId
+  );
 };
 
 export const markChatAsSeen = async (currentUserId, chatId) => {
@@ -102,10 +226,31 @@ export const updateOwnChatFlags = async (currentUserId, chatId, flags) => {
 export const syncSidebarPreview = async ({
   chatId,
   currentUserId,
-  otherUserId,
   preview,
+  /** @deprecated Prefer reading participants from the chat doc */
+  otherUserId,
+  participantIds: participantIdsOverride,
 }) => {
-  const participantIds = [currentUserId, otherUserId];
+  let participantIds = participantIdsOverride;
+
+  if (!participantIds?.length) {
+    try {
+      const chatSnap = await getDoc(doc(db, "chats", chatId));
+      participantIds = chatSnap.data()?.participantIds;
+    } catch (error) {
+      console.warn(
+        "[chatService] Failed to load chat participants for sidebar sync:",
+        error.code,
+        error.message
+      );
+    }
+  }
+
+  if (!participantIds?.length) {
+    participantIds = otherUserId
+      ? [currentUserId, otherUserId]
+      : [currentUserId];
+  }
 
   for (const participantId of participantIds) {
     try {

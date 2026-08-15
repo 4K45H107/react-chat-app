@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./ChatList.css";
 import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
+import CreateGroup from "./createGroup/CreateGroup";
 import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
@@ -13,8 +14,25 @@ import {
   showChatNotification,
 } from "../../../lib/notifications";
 
+const loadUserProfile = async (userId) => {
+  try {
+    const userDocSnap = await getDoc(doc(db, "users", userId));
+    if (!userDocSnap.exists()) return null;
+    return normalizeUser({ id: userDocSnap.id, ...userDocSnap.data() });
+  } catch (error) {
+    console.error(
+      "[ChatList] Failed to load user profile:",
+      userId,
+      error.code,
+      error.message,
+      error
+    );
+    return null;
+  }
+};
+
 const ChatList = () => {
-  const [addMode, setAddMode] = useState(false);
+  const [modalMode, setModalMode] = useState(null); // "dm" | "group" | null
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -40,30 +58,63 @@ const ChatList = () => {
           const items = res.data()?.chats ?? [];
 
           const promises = items.map(async (item) => {
-            try {
-              const userDocSnap = await getDoc(
-                doc(db, "users", item.receiverId)
-              );
+            if (item.isGroup) {
+              try {
+                const chatSnap = await getDoc(doc(db, "chats", item.chatId));
+                const chatData = chatSnap.exists() ? chatSnap.data() : {};
+                const participantIds = chatData.participantIds ?? [];
+                const groupName =
+                  chatData.name || item.groupName || "Group";
+                const groupAvatar =
+                  chatData.avatar || item.groupAvatar || null;
 
-              if (!userDocSnap.exists()) {
-                console.warn(
-                  "[ChatList] Skipping chat — user profile missing:",
-                  item.receiverId
+                const otherIds = participantIds.filter(
+                  (id) => id !== currentUser.id
+                );
+                const members = (
+                  await Promise.all(
+                    otherIds.slice(0, 12).map((id) => loadUserProfile(id))
+                  )
+                ).filter(Boolean);
+
+                return {
+                  ...item,
+                  isGroup: true,
+                  groupName,
+                  groupAvatar,
+                  participantIds,
+                  members,
+                  user: {
+                    id: item.chatId,
+                    username: groupName,
+                    avatar: groupAvatar || "./avatar.png",
+                    blocked: [],
+                  },
+                };
+              } catch (error) {
+                console.error(
+                  "[ChatList] Failed to load group chat:",
+                  item.chatId,
+                  error.code,
+                  error.message,
+                  error
                 );
                 return null;
               }
+            }
 
-              return { ...item, user: normalizeUser(userDocSnap.data()) };
-            } catch (error) {
-              console.error(
-                "[ChatList] Failed to load user profile:",
-                item.receiverId,
-                error.code,
-                error.message,
-                error
+            if (!item.receiverId) return null;
+
+            const user = await loadUserProfile(item.receiverId);
+            if (!user) {
+              console.warn(
+                "[ChatList] Skipping chat — user profile missing:",
+                item.receiverId
               );
               return null;
             }
+
+            return { ...item, user };
           });
 
           const chatList = (await Promise.all(promises)).filter(Boolean);
@@ -86,11 +137,27 @@ const ChatList = () => {
           );
 
           for (const chat of targets) {
+            const openTarget = () => {
+              if (chat.isGroup) {
+                changeChat(chat.chatId, {
+                  isGroup: true,
+                  groupName: chat.groupName,
+                  groupAvatar: chat.groupAvatar,
+                  participantIds: chat.participantIds,
+                  members: chat.members,
+                });
+                return;
+              }
+              changeChat(chat.chatId, chat.user);
+            };
+
             showChatNotification({
-              title: chat.user?.username || "New message",
+              title: chat.isGroup
+                ? chat.groupName || "Group"
+                : chat.user?.username || "New message",
               body: chat.lastMessage,
               tag: chat.chatId,
-              onClick: () => changeChat(chat.chatId, chat.user),
+              onClick: openTarget,
             });
           }
 
@@ -122,9 +189,24 @@ const ChatList = () => {
     return () => unSub();
   }, [currentUser.id, changeChat]);
 
-  const handleSelectChat = (chat) => {
+  const openChat = (chat) => {
+    if (chat.isGroup) {
+      changeChat(chat.chatId, {
+        isGroup: true,
+        groupName: chat.groupName,
+        groupAvatar: chat.groupAvatar,
+        participantIds: chat.participantIds,
+        members: chat.members,
+      });
+      return;
+    }
+
     if (!chat.user) return;
     changeChat(chat.chatId, chat.user);
+  };
+
+  const handleSelectChat = (chat) => {
+    openChat(chat);
   };
 
   const searchQuery = search.trim().toLowerCase();
@@ -135,10 +217,15 @@ const ChatList = () => {
     if (!inArchiveView) return false;
     if (!searchQuery) return true;
 
-    const username = chat.user?.username?.toLowerCase() ?? "";
+    const title = chat.isGroup
+      ? (chat.groupName ?? "").toLowerCase()
+      : (chat.user?.username?.toLowerCase() ?? "");
     const lastMessage = chat.lastMessage?.toLowerCase() ?? "";
-    return username.includes(searchQuery) || lastMessage.includes(searchQuery);
+    return title.includes(searchQuery) || lastMessage.includes(searchQuery);
   });
+
+  const displayTitle = (chat) =>
+    chat.isGroup ? chat.groupName || "Group" : chat.user?.username || "Unknown";
 
   return (
     <div className="chatList">
@@ -176,12 +263,30 @@ const ChatList = () => {
         <button
           type="button"
           className="add"
-          onClick={() => setAddMode((prev) => !prev)}
-          aria-label={addMode ? "Close add user" : "Add user"}
-          aria-expanded={addMode}
+          onClick={() =>
+            setModalMode((prev) => (prev === "dm" ? null : "dm"))
+          }
+          aria-label={modalMode === "dm" ? "Close add user" : "Add user"}
+          aria-expanded={modalMode === "dm"}
         >
           <span className="addGlyph" aria-hidden="true">
-            {addMode ? "−" : "+"}
+            {modalMode === "dm" ? "−" : "+"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="add groupAdd"
+          onClick={() =>
+            setModalMode((prev) => (prev === "group" ? null : "group"))
+          }
+          aria-label={
+            modalMode === "group" ? "Close create group" : "Create group"
+          }
+          aria-expanded={modalMode === "group"}
+          title="New group"
+        >
+          <span className="addGlyph" aria-hidden="true">
+            {modalMode === "group" ? "−" : "G"}
           </span>
         </button>
       </div>
@@ -211,14 +316,16 @@ const ChatList = () => {
             ? "No chats match your search."
             : showArchived
               ? "No archived chats."
-              : "No chats yet. Tap + to start one."}
+              : "No chats yet. Tap + for a DM or the group button for a group."}
         </p>
       ) : (
         filteredChats.map((chat) => (
           <div
             className={`item${!chat.isSeen ? " unread" : ""}${
               chat.muted ? " muted" : ""
-            }${chat.chatId === chatId ? " selected" : ""}`}
+            }${chat.chatId === chatId ? " selected" : ""}${
+              chat.isGroup ? " group" : ""
+            }`}
             key={chat.chatId}
             onClick={() => handleSelectChat(chat)}
             onKeyDown={(e) => {
@@ -230,20 +337,37 @@ const ChatList = () => {
             role="button"
             tabIndex={0}
             aria-current={chat.chatId === chatId ? "true" : undefined}
-            aria-label={`Open chat with ${chat.user.username}${
-              !chat.isSeen ? ", unread" : ""
-            }${chat.muted ? ", muted" : ""}${
-              chat.archived ? ", archived" : ""
-            }${chat.chatId === chatId ? ", selected" : ""}`}
+            aria-label={`Open ${chat.isGroup ? "group" : "chat with"} ${displayTitle(
+              chat
+            )}${!chat.isSeen ? ", unread" : ""}${
+              chat.muted ? ", muted" : ""
+            }${chat.archived ? ", archived" : ""}${
+              chat.chatId === chatId ? ", selected" : ""
+            }`}
           >
-            <img
-              src={chat.user.avatar || "./avatar.png"}
-              alt=""
-              aria-hidden="true"
-            />
+            {chat.isGroup ? (
+              chat.groupAvatar ? (
+                <img
+                  src={chat.groupAvatar}
+                  alt=""
+                  aria-hidden="true"
+                />
+              ) : (
+                <div className="groupAvatar" aria-hidden="true">
+                  {(chat.groupName || "G").slice(0, 1).toUpperCase()}
+                </div>
+              )
+            ) : (
+              <img
+                src={chat.user.avatar || "./avatar.png"}
+                alt=""
+                aria-hidden="true"
+              />
+            )}
             <div className="texts">
               <span>
-                {chat.user.username}
+                {displayTitle(chat)}
+                {chat.isGroup ? " · group" : ""}
                 {chat.muted ? " · muted" : ""}
               </span>
               <p>{chat.lastMessage}</p>
@@ -252,7 +376,12 @@ const ChatList = () => {
         ))
       )}
 
-      {addMode && <AddUser onClose={() => setAddMode(false)} />}
+      {modalMode === "dm" && (
+        <AddUser onClose={() => setModalMode(null)} />
+      )}
+      {modalMode === "group" && (
+        <CreateGroup onClose={() => setModalMode(null)} />
+      )}
     </div>
   );
 };

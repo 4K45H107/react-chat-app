@@ -1,0 +1,66 @@
+.createGroup {
+  #create-group-name,
+  #create-group-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    outline: none;
+    background-color: var(--color-control-bg);
+    color: var(--color-text);
+
+    &:disabled {
+      opacity: 0.7;
+    }
+
+    &::placeholder {
+      color: var(--color-muted);
+    }
+  }
+
+  .selectRow {
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+
+    &.selected {
+      background-color: var(--color-bubble-own);
+      border-color: var(--color-border);
+    }
+
+    .checkMark {
+      width: 24px;
+      flex-shrink: 0;
+      text-align: center;
+      color: var(--color-primary);
+      font-weight: 700;
+    }
+  }
+
+  .createGroupBtn {
+    margin-top: 4px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 10px;
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+    }
+  }
+}

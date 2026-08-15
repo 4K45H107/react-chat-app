@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./details.css";
 import { toast } from "react-toastify";
 import {
@@ -12,15 +12,33 @@ import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import { normalizeUser } from "../../lib/normalizeUser";
-import { updateOwnChatFlags } from "../../lib/chatService";
+import upload from "../../lib/upload";
+import {
+  leaveGroupChat,
+  updateGroupAvatar,
+  updateOwnChatFlags,
+} from "../../lib/chatService";
 
 const Details = () => {
-  const { chatId, user, isReceiverBlocked, closeChat } = useChatStore();
+  const {
+    chatId,
+    user,
+    isGroup,
+    groupName,
+    groupAvatar,
+    members,
+    participantIds,
+    isReceiverBlocked,
+    closeChat,
+  } = useChatStore();
   const { currentUser } = useUserStore();
   const [isUpdatingBlock, setIsUpdatingBlock] = useState(false);
   const [isUpdatingFlags, setIsUpdatingFlags] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [muted, setMuted] = useState(false);
   const [archived, setArchived] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.id || !chatId) return;
@@ -46,8 +64,34 @@ const Details = () => {
     return () => unSub();
   }, [currentUser?.id, chatId]);
 
+  useEffect(() => {
+    if (!isGroup || !chatId) return;
+
+    const unSub = onSnapshot(
+      doc(db, "chats", chatId),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        useChatStore.setState({
+          groupAvatar: data.avatar || null,
+          groupName: data.name || "Group",
+          participantIds: data.participantIds ?? [],
+        });
+      },
+      (error) => {
+        console.warn(
+          "[Details] Failed to listen for group meta:",
+          error.code,
+          error.message
+        );
+      }
+    );
+
+    return () => unSub();
+  }, [isGroup, chatId]);
+
   const handleToggleBlock = async () => {
-    if (!user?.id || !currentUser?.id || isUpdatingBlock) return;
+    if (isGroup || !user?.id || !currentUser?.id || isUpdatingBlock) return;
 
     setIsUpdatingBlock(true);
     try {
@@ -119,17 +163,150 @@ const Details = () => {
     }
   };
 
+  const handleLeaveGroup = async () => {
+    if (!isGroup || !currentUser?.id || !chatId || isLeaving) return;
+
+    setIsLeaving(true);
+    try {
+      await leaveGroupChat({ chatId, userId: currentUser.id });
+      toast.success("Left the group");
+      closeChat();
+    } catch (error) {
+      console.error(
+        "[Details] Failed to leave group:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to leave group. Please try again.");
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
+  const handleGroupAvatarSelect = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !isGroup || !chatId || !currentUser?.id || isUploadingAvatar) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.warn("Please choose an image file.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const imageUrl = await upload(file, { uid: currentUser.id });
+      if (!imageUrl) {
+        toast.error("Failed to upload photo. Please try again.");
+        return;
+      }
+
+      await updateGroupAvatar({
+        chatId,
+        avatarUrl: imageUrl,
+        currentUserId: currentUser.id,
+      });
+      useChatStore.setState({ groupAvatar: imageUrl });
+      toast.success("Group photo updated");
+    } catch (error) {
+      console.error(
+        "[Details] Failed to update group avatar:",
+        error.code || error,
+        error.message || error
+      );
+      toast.error("Failed to update group photo. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const memberCount = participantIds?.length || (members?.length ?? 0) + 1;
+
   return (
     <div className="details">
       <div className="user">
-        <img
-          src={user?.avatar || "./avatar.png"}
-          alt={user?.username ?? "Chat partner"}
-        />
-        <h2>{user?.username ?? "Unknown user"}</h2>
-        <p>{user?.email ?? ""}</p>
+        {isGroup ? (
+          groupAvatar ? (
+            <img src={groupAvatar} alt={groupName || "Group"} />
+          ) : (
+            <div className="groupAvatarLarge" aria-hidden="true">
+              {(groupName || "G").slice(0, 1).toUpperCase()}
+            </div>
+          )
+        ) : (
+          <img
+            src={user?.avatar || "./avatar.png"}
+            alt={user?.username ?? "Chat partner"}
+          />
+        )}
+        <h2>
+          {isGroup ? groupName || "Group" : user?.username ?? "Unknown user"}
+        </h2>
+        <p>
+          {isGroup
+            ? `${memberCount} members`
+            : (user?.email ?? "")}
+        </p>
+        {isGroup && (
+          <>
+            <input
+              ref={avatarInputRef}
+              id="group-avatar-upload"
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleGroupAvatarSelect}
+            />
+            <button
+              type="button"
+              className="groupAvatarBtn"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+            >
+              {isUploadingAvatar
+                ? "Uploading…"
+                : groupAvatar
+                  ? "Change group photo"
+                  : "Upload group photo"}
+            </button>
+          </>
+        )}
       </div>
       <div className="info">
+        {isGroup && (
+          <div className="option">
+            <div className="title">
+              <span>Members</span>
+            </div>
+            <ul className="memberList">
+              <li className="memberRow">
+                <img
+                  src={currentUser?.avatar || "./avatar.png"}
+                  alt=""
+                  aria-hidden="true"
+                />
+                <span>
+                  {currentUser?.username || "You"}
+                  <em> (you)</em>
+                </span>
+              </li>
+              {(members ?? []).map((member) => (
+                <li className="memberRow" key={member.id}>
+                  <img
+                    src={member.avatar || "./avatar.png"}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <span>{member.username || "Member"}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="option">
           <div className="title">
             <span>Chat settings</span>
@@ -178,18 +355,29 @@ const Details = () => {
           </div>
         </div>
 
-        <button
-          className="btn-blk"
-          type="button"
-          onClick={handleToggleBlock}
-          disabled={isUpdatingBlock}
-        >
-          {isUpdatingBlock
-            ? "Updating..."
-            : isReceiverBlocked
-              ? "Unblock User"
-              : "Block User"}
-        </button>
+        {isGroup ? (
+          <button
+            className="btn-blk"
+            type="button"
+            onClick={handleLeaveGroup}
+            disabled={isLeaving}
+          >
+            {isLeaving ? "Leaving…" : "Leave group"}
+          </button>
+        ) : (
+          <button
+            className="btn-blk"
+            type="button"
+            onClick={handleToggleBlock}
+            disabled={isUpdatingBlock}
+          >
+            {isUpdatingBlock
+              ? "Updating..."
+              : isReceiverBlocked
+                ? "Unblock User"
+                : "Block User"}
+          </button>
+        )}
       </div>
     </div>
   );

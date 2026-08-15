@@ -12,11 +12,26 @@ service cloud.firestore {
         && request.auth.uid in resource.data.participantIds;
     }
 
+    function isCreatingDirectChat() {
+      return request.resource.data.participantIds.size() == 2
+        && (!('type' in request.resource.data) || request.resource.data.type == 'direct');
+    }
+
+    function isCreatingGroupChat() {
+      return request.resource.data.type == 'group'
+        && request.resource.data.participantIds.size() >= 3
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60;
+    }
+
     function isCreatingAsParticipant() {
       return signedIn()
         && 'participantIds' in request.resource.data
         && request.auth.uid in request.resource.data.participantIds
-        && request.resource.data.participantIds.size() == 2;
+        && request.resource.data.participantIds.size() >= 2
+        && (isCreatingDirectChat() || isCreatingGroupChat());
     }
 
     function canAccessChat(chatId) {

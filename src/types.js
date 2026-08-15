@@ -11,13 +11,18 @@
  *
  * @typedef {Object} ChatMeta
  * @property {string} chatId
- * @property {string} receiverId
+ * @property {string} [receiverId]
+ * @property {boolean} [isGroup]
+ * @property {string} [groupName]
+ * @property {string} [groupAvatar]
  * @property {string} lastMessage
  * @property {boolean} isSeen
  * @property {number} updatedAt
  * @property {boolean} [muted]
  * @property {boolean} [archived]
  * @property {AppUser} [user]
+ * @property {AppUser[]} [members]
+ * @property {string[]} [participantIds]
  *
  * @typedef {Object} ChatMessage
  * @property {string} id
@@ -31,8 +36,12 @@
  *
  * @typedef {Object} ChatDoc
  * @property {string[]} participantIds
+ * @property {"direct"|"group"} [type]
+ * @property {string} [name]
+ * @property {string} [avatar]
+ * @property {string} [createdBy]
  * @property {import("firebase/firestore").Timestamp|Date|null} [createdAt]
- * @property {Record<string, number>} [typing]
+ * @property {{ userId?: string|null, updatedAt?: number }} [typing]
  * @property {ChatMessage[]} [messages] Legacy array (migrated on open)
  */
 

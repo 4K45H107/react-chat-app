@@ -6,6 +6,11 @@ import { getBlockFlags } from "./blockFlags";
 const emptyChatState = {
   chatId: null,
   user: null,
+  isGroup: false,
+  groupName: null,
+  groupAvatar: null,
+  participantIds: [],
+  members: [],
   isCurrentUserBlocked: false,
   isReceiverBlocked: false,
   showDetails: false,
@@ -14,13 +19,42 @@ const emptyChatState = {
 export const useChatStore = create((set) => ({
   ...emptyChatState,
 
-  changeChat: (chatId, user) => {
+  /**
+   * Open a chat.
+   * @param {string} chatId
+   * @param {import("./types").AppUser | {
+   *   isGroup: true,
+   *   groupName?: string,
+   *   groupAvatar?: string,
+   *   participantIds?: string[],
+   *   members?: import("./types").AppUser[],
+   * }} userOrGroup Partner user (DM) or group payload
+   */
+  changeChat: (chatId, userOrGroup) => {
     const currentUser = normalizeUser(useUserStore.getState().currentUser);
-    const partner = normalizeUser(user);
-    if (!partner || !currentUser) return;
+    if (!currentUser || !chatId) return;
 
-    // Selecting a chat opens the conversation only — details stays closed
-    // until the user toggles it from the chat header.
+    if (userOrGroup?.isGroup) {
+      set({
+        chatId,
+        user: null,
+        isGroup: true,
+        groupName: userOrGroup.groupName || "Group",
+        groupAvatar: userOrGroup.groupAvatar || null,
+        participantIds: userOrGroup.participantIds ?? [],
+        members: (userOrGroup.members ?? [])
+          .map((member) => normalizeUser(member))
+          .filter(Boolean),
+        isCurrentUserBlocked: false,
+        isReceiverBlocked: false,
+        showDetails: false,
+      });
+      return;
+    }
+
+    const partner = normalizeUser(userOrGroup);
+    if (!partner) return;
+
     const { isCurrentUserBlocked, isReceiverBlocked } = getBlockFlags(
       currentUser,
       partner
@@ -29,6 +63,11 @@ export const useChatStore = create((set) => ({
     set({
       chatId,
       user: partner,
+      isGroup: false,
+      groupName: null,
+      groupAvatar: null,
+      participantIds: [currentUser.id, partner.id].filter(Boolean),
+      members: [partner],
       isCurrentUserBlocked,
       isReceiverBlocked,
       showDetails: false,

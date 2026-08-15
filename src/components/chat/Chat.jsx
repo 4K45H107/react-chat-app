@@ -78,6 +78,11 @@ const Chat = () => {
   const {
     chatId,
     user,
+    isGroup,
+    groupName,
+    groupAvatar,
+    participantIds,
+    members,
     isCurrentUserBlocked,
     isReceiverBlocked,
     closeChat,
@@ -85,7 +90,21 @@ const Chat = () => {
   } = useChatStore();
   const { currentUser } = useUserStore();
 
-  const isChatBlocked = isCurrentUserBlocked || isReceiverBlocked;
+  const isChatBlocked =
+    !isGroup && (isCurrentUserBlocked || isReceiverBlocked);
+
+  const memberNameById = useMemo(() => {
+    const map = new Map();
+    for (const member of members ?? []) {
+      if (member?.id) map.set(member.id, member.username || "Member");
+    }
+    if (currentUser?.id) {
+      map.set(currentUser.id, currentUser.username || "You");
+    }
+    return map;
+  }, [members, currentUser?.id, currentUser?.username]);
+
+  const canSend = Boolean(chatId) && (isGroup || Boolean(user));
 
   const endRef = useRef(null);
   const centerRef = useRef(null);
@@ -157,7 +176,8 @@ const Chat = () => {
   }, [chatId]);
 
   useEffect(() => {
-    if (!chatId || !user?.id) return;
+    if (!chatId || !currentUser?.id) return;
+    if (!isGroup && !user?.id) return;
 
     let clearPartnerTimer = null;
 
@@ -171,7 +191,9 @@ const Chat = () => {
         }
 
         const age = Date.now() - (typing.updatedAt ?? 0);
-        const fresh = age < TYPING_TTL_MS && typing.userId === user.id;
+        const isPartner =
+          isGroup || typing.userId === user?.id;
+        const fresh = age < TYPING_TTL_MS && isPartner;
         setPartnerTyping(fresh);
 
         if (fresh) {
@@ -193,7 +215,7 @@ const Chat = () => {
       unsub();
       if (clearPartnerTimer) clearTimeout(clearPartnerTimer);
     };
-  }, [chatId, user?.id, currentUser.id]);
+  }, [chatId, user?.id, currentUser.id, isGroup]);
 
   // Clear own typing flag on unmount / leave chat
   useEffect(() => {
@@ -204,7 +226,10 @@ const Chat = () => {
   }, [chatId, currentUser?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (isGroup || !user?.id) {
+      setPartnerOnline(false);
+      return;
+    }
 
     let refreshTimer = null;
     const unsub = listenUserPresence(user.id, {
@@ -228,7 +253,7 @@ const Chat = () => {
       unsub();
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [user?.id]);
+  }, [user?.id, isGroup]);
 
   const clearOwnTyping = async () => {
     if (!chatId || !currentUser?.id || !isTypingRef.current) return;
@@ -438,7 +463,7 @@ const Chat = () => {
   };
 
   const handleSend = async () => {
-    if (text === "" || !user || isChatBlocked || isSending) return;
+    if (text === "" || !canSend || isChatBlocked || isSending) return;
 
     setIsSending(true);
     shouldStickToBottomRef.current = true;
@@ -452,7 +477,6 @@ const Chat = () => {
       await syncSidebarPreview({
         chatId,
         currentUserId: currentUser.id,
-        otherUserId: user.id,
         preview: text,
       });
       setText("");
@@ -472,7 +496,7 @@ const Chat = () => {
   const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !user || isChatBlocked || isSending) return;
+    if (!file || !canSend || isChatBlocked || isSending) return;
 
     if (!file.type.startsWith("image/")) {
       toast.warn("Please choose an image file.");
@@ -499,7 +523,6 @@ const Chat = () => {
       await syncSidebarPreview({
         chatId,
         currentUserId: currentUser.id,
-        otherUserId: user.id,
         preview: caption || "Photo",
       });
       setText("");
@@ -595,18 +618,37 @@ const Chat = () => {
           ←
         </button>
         <div className="user">
-          <img
-            src={user?.avatar || "./avatar.png"}
-            alt={user?.username ?? "Chat partner"}
-          />
+          {isGroup ? (
+            groupAvatar ? (
+              <img
+                src={groupAvatar}
+                alt={groupName || "Group"}
+              />
+            ) : (
+              <div className="groupAvatarHeader" aria-hidden="true">
+                {(groupName || "G").slice(0, 1).toUpperCase()}
+              </div>
+            )
+          ) : (
+            <img
+              src={user?.avatar || "./avatar.png"}
+              alt={user?.username ?? "Chat partner"}
+            />
+          )}
           <div className="texts">
-            <span>{user?.username ?? "Unknown user"}</span>
+            <span>
+              {isGroup ? groupName || "Group" : user?.username ?? "Unknown user"}
+            </span>
             <p className={partnerTyping ? "typingStatus" : undefined}>
               {partnerTyping
-                ? "typing…"
-                : partnerOnline
-                  ? "Online"
-                  : (user?.email ?? "Offline")}
+                ? isGroup
+                  ? "Someone is typing…"
+                  : "typing…"
+                : isGroup
+                  ? `${participantIds?.length || members?.length || 0} members`
+                  : partnerOnline
+                    ? "Online"
+                    : (user?.email ?? "Offline")}
             </p>
           </div>
         </div>
@@ -761,6 +803,13 @@ const Chat = () => {
             }}
           >
             <div className="texts">
+              {isGroup &&
+                !message.deleted &&
+                message.senderId !== currentUser.id && (
+                  <span className="senderName">
+                    {memberNameById.get(message.senderId) || "Member"}
+                  </span>
+                )}
               {message.deleted ? (
                 <p className="deletedText">Message deleted</p>
               ) : isEditing ? (
