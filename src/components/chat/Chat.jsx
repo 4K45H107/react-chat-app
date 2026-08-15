@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import "./chat.css";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "react-toastify";
@@ -31,6 +31,9 @@ const Chat = () => {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState("");
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
@@ -49,6 +52,7 @@ const Chat = () => {
 
   const endRef = useRef(null);
   const centerRef = useRef(null);
+  const messageNodeRefs = useRef(new Map());
   const emojiRef = useRef(null);
   const imageInputRef = useRef(null);
   const migratedRef = useRef(new Set());
@@ -65,17 +69,51 @@ const Chat = () => {
     ...latestMessages.filter((message) => !olderIds.has(message.id)),
   ];
 
-  // Reset pagination / typing state when switching conversations
+  const searchQuery = threadSearch.trim().toLowerCase();
+  const matchIds = useMemo(() => {
+    if (!searchQuery) return [];
+    return messages
+      .filter(
+        (message) =>
+          !message.deleted &&
+          message.id &&
+          (message.text ?? "").toLowerCase().includes(searchQuery)
+      )
+      .map((message) => message.id);
+  }, [messages, searchQuery]);
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [searchQuery, chatId]);
+
+  useEffect(() => {
+    if (!matchIds.length) return;
+    const safeIndex = Math.min(activeMatchIndex, matchIds.length - 1);
+    if (safeIndex !== activeMatchIndex) {
+      setActiveMatchIndex(safeIndex);
+      return;
+    }
+    const node = messageNodeRefs.current.get(matchIds[safeIndex]);
+    node?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeMatchIndex, matchIds]);
+
+  // Reset pagination / typing / search / edit state when switching conversations
   useEffect(() => {
     setLatestMessages([]);
     setOlderMessages([]);
     setHasMore(false);
     setPartnerTyping(false);
     setPartnerOnline(false);
+    setEditingMessageId(null);
+    setEditText("");
+    setThreadSearchOpen(false);
+    setThreadSearch("");
+    setActiveMatchIndex(0);
     oldestDocRef.current = null;
     hasLoadedOlderRef.current = false;
     shouldStickToBottomRef.current = true;
     isTypingRef.current = false;
+    messageNodeRefs.current.clear();
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
@@ -505,6 +543,23 @@ const Chat = () => {
           </div>
         </div>
         <div className="icons">
+          <button
+            type="button"
+            className="iconButton"
+            onClick={() =>
+              setThreadSearchOpen((open) => {
+                if (open) {
+                  setThreadSearch("");
+                  setActiveMatchIndex(0);
+                }
+                return !open;
+              })
+            }
+            aria-label={threadSearchOpen ? "Close message search" : "Search in chat"}
+            aria-pressed={threadSearchOpen}
+          >
+            <img src="./search.png" alt="" aria-hidden="true" />
+          </button>
           <img src="./phone.png" alt="" aria-hidden="true" />
           <img src="./video.png" alt="" aria-hidden="true" />
           <button
@@ -517,6 +572,52 @@ const Chat = () => {
           </button>
         </div>
       </div>
+
+      {threadSearchOpen && (
+        <div className="threadSearch" role="search">
+          <input
+            type="search"
+            value={threadSearch}
+            onChange={(e) => setThreadSearch(e.target.value)}
+            placeholder="Search in this chat…"
+            aria-label="Search messages in this chat"
+            autoFocus
+          />
+          <span className="matchCount" aria-live="polite">
+            {searchQuery
+              ? matchIds.length
+                ? `${activeMatchIndex + 1}/${matchIds.length}`
+                : "0 matches"
+              : "—"}
+          </span>
+          <button
+            type="button"
+            className="searchNav"
+            disabled={!matchIds.length}
+            onClick={() =>
+              setActiveMatchIndex((i) =>
+                matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0
+              )
+            }
+            aria-label="Previous match"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="searchNav"
+            disabled={!matchIds.length}
+            onClick={() =>
+              setActiveMatchIndex((i) =>
+                matchIds.length ? (i + 1) % matchIds.length : 0
+              )
+            }
+            aria-label="Next match"
+          >
+            ↓
+          </button>
+        </div>
+      )}
 
       {/* ------ CENTER ------ */}
       <div
@@ -548,13 +649,24 @@ const Chat = () => {
         )}
         {messages.map((message, index) => {
           const isEditing = editingMessageId === message.id;
+          const isMatch =
+            Boolean(message.id) && matchIds.includes(message.id);
+          const isActiveMatch =
+            isMatch && matchIds[activeMatchIndex] === message.id;
 
           return (
           <div
             className={`message ${
               message.senderId === currentUser.id ? "own" : ""
-            }${message.deleted ? " deleted" : ""}`}
+            }${message.deleted ? " deleted" : ""}${
+              isMatch ? " searchMatch" : ""
+            }${isActiveMatch ? " searchMatchActive" : ""}`}
             key={message.id ?? `${message.senderId}-${index}`}
+            ref={(node) => {
+              if (!message.id) return;
+              if (node) messageNodeRefs.current.set(message.id, node);
+              else messageNodeRefs.current.delete(message.id);
+            }}
           >
             <div className="texts">
               {message.deleted ? (

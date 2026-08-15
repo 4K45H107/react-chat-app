@@ -262,6 +262,15 @@
       &.deleted .texts p {
         opacity: 0.85;
       }
+
+      &.searchMatch .texts > p {
+        outline: 1px solid rgba(126, 182, 255, 0.45);
+      }
+
+      &.searchMatchActive .texts > p {
+        outline: 2px solid #7eb6ff;
+        background-color: rgba(55, 115, 168, 0.45);
+      }
     }
   }
 
