@@ -13,9 +13,11 @@ import {
   getDocs,
   query,
   setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import upload from "../../lib/upload";
+import { useUserStore } from "../../lib/userStore";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -138,19 +140,40 @@ const Login = () => {
         return;
       }
 
-      const imageUrl = await upload(avatar.file, { uid: cred.user.uid });
-
+      // Write profile before avatar upload so auth bootstrap can find the doc
+      // (onAuthStateChanged fires as soon as Auth is created).
       await setDoc(doc(db, "users", cred.user.uid), {
         username,
         email,
         id: cred.user.uid,
         blocked: [],
-        avatar: imageUrl || "",
+        avatar: "",
       });
 
       await setDoc(doc(db, "userChats", cred.user.uid), {
         chats: [],
       });
+
+      await useUserStore.getState().fetchUserInfo(cred.user.uid);
+
+      if (avatar.file) {
+        try {
+          const imageUrl = await upload(avatar.file, { uid: cred.user.uid });
+          if (imageUrl) {
+            await updateDoc(doc(db, "users", cred.user.uid), {
+              avatar: imageUrl,
+            });
+            await useUserStore.getState().fetchUserInfo(cred.user.uid);
+          }
+        } catch (uploadError) {
+          console.error(
+            "[Login] Avatar upload failed after signup:",
+            uploadError
+          );
+          toast.warn("Account created, but avatar upload failed.");
+        }
+      }
+
       toast.success("Account created successfully!");
     } catch (error) {
       console.error(
