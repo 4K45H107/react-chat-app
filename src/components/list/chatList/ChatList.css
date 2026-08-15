@@ -53,6 +53,26 @@
       }
     }
   }
+
+  .listToolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 20px 8px;
+
+    .archiveToggle {
+      border: none;
+      background: transparent;
+      color: #9fbfd9;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+
+      &.active {
+        color: #cfe3ff;
+      }
+    }
+  }
+
   .item {
     display: flex;
     align-items: center;
@@ -60,6 +80,10 @@
     padding: 20px;
     cursor: pointer;
     border-bottom: 1px solid #dddddd35;
+
+    &.muted {
+      opacity: 0.72;
+    }
 
     img {
       width: 50px;

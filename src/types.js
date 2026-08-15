@@ -15,6 +15,8 @@
  * @property {string} lastMessage
  * @property {boolean} isSeen
  * @property {number} updatedAt
+ * @property {boolean} [muted]
+ * @property {boolean} [archived]
  * @property {AppUser} [user]
  *
  * @typedef {Object} ChatMessage

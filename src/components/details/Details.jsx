@@ -1,16 +1,50 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./details.css";
 import { toast } from "react-toastify";
-import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
+import {
+  arrayRemove,
+  arrayUnion,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import { normalizeUser } from "../../lib/normalizeUser";
+import { updateOwnChatFlags } from "../../lib/chatService";
 
 const Details = () => {
-  const { user, isReceiverBlocked } = useChatStore();
+  const { chatId, user, isReceiverBlocked, closeChat } = useChatStore();
   const { currentUser } = useUserStore();
   const [isUpdatingBlock, setIsUpdatingBlock] = useState(false);
+  const [isUpdatingFlags, setIsUpdatingFlags] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [archived, setArchived] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id || !chatId) return;
+
+    const unSub = onSnapshot(
+      doc(db, "userChats", currentUser.id),
+      (snap) => {
+        const entry = (snap.data()?.chats ?? []).find(
+          (chat) => chat.chatId === chatId
+        );
+        setMuted(Boolean(entry?.muted));
+        setArchived(Boolean(entry?.archived));
+      },
+      (error) => {
+        console.warn(
+          "[Details] Failed to listen for chat flags:",
+          error.code,
+          error.message
+        );
+      }
+    );
+
+    return () => unSub();
+  }, [currentUser?.id, chatId]);
 
   const handleToggleBlock = async () => {
     if (!user?.id || !currentUser?.id || isUpdatingBlock) return;
@@ -57,9 +91,36 @@ const Details = () => {
     }
   };
 
+  const handleToggleFlag = async (flag) => {
+    if (!currentUser?.id || !chatId || isUpdatingFlags) return;
+
+    setIsUpdatingFlags(true);
+    try {
+      if (flag === "muted") {
+        const next = !muted;
+        await updateOwnChatFlags(currentUser.id, chatId, { muted: next });
+        toast.success(next ? "Chat muted" : "Chat unmuted");
+      } else if (flag === "archived") {
+        const next = !archived;
+        await updateOwnChatFlags(currentUser.id, chatId, { archived: next });
+        toast.success(next ? "Chat archived" : "Chat unarchived");
+        if (next) closeChat();
+      }
+    } catch (error) {
+      console.error(
+        "[Details] Failed to update chat flags:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to update chat settings. Please try again.");
+    } finally {
+      setIsUpdatingFlags(false);
+    }
+  };
+
   return (
     <div className="details">
-      {/* Active chat partner — same user object as the Chat header */}
       <div className="user">
         <img
           src={user?.avatar || "./avatar.png"}
@@ -68,46 +129,55 @@ const Details = () => {
         <h2>{user?.username ?? "Unknown user"}</h2>
         <p>{user?.email ?? ""}</p>
       </div>
-      {/* ----- INFO ----- */}
       <div className="info">
-        {/* ----- OPTION 1 ----- */}
         <div className="option">
           <div className="title">
             <span>Chat settings</span>
-            <img src="./arrowUp.png" alt="" />
+          </div>
+          <div className="settingActions">
+            <button
+              type="button"
+              className="settingBtn"
+              onClick={() => handleToggleFlag("muted")}
+              disabled={isUpdatingFlags}
+            >
+              {muted ? "Unmute" : "Mute"}
+            </button>
+            <button
+              type="button"
+              className="settingBtn"
+              onClick={() => handleToggleFlag("archived")}
+              disabled={isUpdatingFlags}
+            >
+              {archived ? "Unarchive" : "Archive"}
+            </button>
           </div>
         </div>
 
-        {/* ----- OPTION 2 ----- */}
         <div className="option">
           <div className="title">
             <span>Privacy & help</span>
-            <img src="./arrowUp.png" alt="" />
+            <img src="./arrowUp.png" alt="" aria-hidden="true" />
           </div>
         </div>
 
-        {/* ----- OPTION 3 ----- */}
         <div className="option">
           <div className="title">
             <span>Shared photos</span>
-            <img src="./arrowDown.png" alt="" />
+            <img src="./arrowDown.png" alt="" aria-hidden="true" />
           </div>
-
-          {/* Shared photos not implemented yet — placeholder removed */}
           <div className="photos">
             <p className="emptyHint">No shared photos yet</p>
           </div>
         </div>
 
-        {/* ----- OPTION 4 ----- */}
         <div className="option">
           <div className="title">
             <span>Shared files</span>
-            <img src="./arrowUp.png" alt="" />
+            <img src="./arrowUp.png" alt="" aria-hidden="true" />
           </div>
         </div>
 
-        {/* ----- BLOCK / UNBLOCK ----- */}
         <button
           className="btn-blk"
           type="button"

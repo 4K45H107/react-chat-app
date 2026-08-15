@@ -38,6 +38,8 @@ export const createChat = async ({ currentUserId, otherUserId }) => {
     receiverId: currentUserId,
     lastMessage: "",
     updatedAt: Date.now(),
+    muted: false,
+    archived: false,
   };
 
   const entryForCurrent = {
@@ -45,6 +47,8 @@ export const createChat = async ({ currentUserId, otherUserId }) => {
     receiverId: otherUserId,
     lastMessage: "",
     updatedAt: Date.now(),
+    muted: false,
+    archived: false,
   };
 
   await updateDoc(doc(db, "userChats", otherUserId), {
@@ -75,6 +79,23 @@ export const markChatAsSeen = async (currentUserId, chatId) => {
   if (chatIndex === -1 || chats[chatIndex].isSeen) return;
 
   chats[chatIndex] = { ...chats[chatIndex], isSeen: true };
+  await updateDoc(userChatsRef, { chats });
+};
+
+/** Update muted/archived flags on the current user's sidebar entry only. */
+export const updateOwnChatFlags = async (currentUserId, chatId, flags) => {
+  const userChatsRef = doc(db, "userChats", currentUserId);
+  const snap = await getDoc(userChatsRef);
+  if (!snap.exists()) return;
+
+  const chats = [...(snap.data().chats ?? [])];
+  const chatIndex = chats.findIndex((c) => c.chatId === chatId);
+  if (chatIndex === -1) return;
+
+  chats[chatIndex] = {
+    ...chats[chatIndex],
+    ...flags,
+  };
   await updateDoc(userChatsRef, { chats });
 };
 

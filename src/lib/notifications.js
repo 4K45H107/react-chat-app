@@ -58,6 +58,7 @@ export const getUnreadNotificationTargets = (
   if (!previousById) return [];
 
   return nextChats.filter((chat) => {
+    if (chat.muted) return false;
     if (chat.isSeen || !chat.lastMessage) return false;
     if (chat.chatId === activeChatId) return false;
 

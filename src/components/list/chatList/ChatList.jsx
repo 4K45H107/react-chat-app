@@ -17,6 +17,7 @@ const ChatList = () => {
   const [addMode, setAddMode] = useState(false);
   const [chats, setChats] = useState([]);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const previousChatsRef = useRef(null);
 
@@ -32,8 +33,6 @@ const ChatList = () => {
   useEffect(() => {
     setIsLoadingList(true);
     previousChatsRef.current = null;
-    // Get chats from firestore
-    // onSnapshot is a listener that listens for changes to the document
     const unSub = onSnapshot(
       doc(db, "userChats", currentUser.id),
       async (res) => {
@@ -129,19 +128,20 @@ const ChatList = () => {
   };
 
   const searchQuery = search.trim().toLowerCase();
-  const filteredChats = searchQuery
-    ? chats.filter((chat) => {
-        const username = chat.user?.username?.toLowerCase() ?? "";
-        const lastMessage = chat.lastMessage?.toLowerCase() ?? "";
-        return (
-          username.includes(searchQuery) || lastMessage.includes(searchQuery)
-        );
-      })
-    : chats;
+  const archivedCount = chats.filter((chat) => chat.archived).length;
+
+  const filteredChats = chats.filter((chat) => {
+    const inArchiveView = showArchived ? chat.archived : !chat.archived;
+    if (!inArchiveView) return false;
+    if (!searchQuery) return true;
+
+    const username = chat.user?.username?.toLowerCase() ?? "";
+    const lastMessage = chat.lastMessage?.toLowerCase() ?? "";
+    return username.includes(searchQuery) || lastMessage.includes(searchQuery);
+  });
 
   return (
     <div className="chatList">
-      {/* ------ SEARCH ------ */}
       <div className="search">
         <div className="searchBar">
           <img src="./search.png" alt="" aria-hidden="true" />
@@ -168,7 +168,19 @@ const ChatList = () => {
         </button>
       </div>
 
-      {/* ------ ITEMS ------ */}
+      <div className="listToolbar">
+        <button
+          type="button"
+          className={`archiveToggle${showArchived ? " active" : ""}`}
+          onClick={() => setShowArchived((prev) => !prev)}
+          aria-pressed={showArchived}
+        >
+          {showArchived
+            ? "Back to chats"
+            : `Archived${archivedCount ? ` (${archivedCount})` : ""}`}
+        </button>
+      </div>
+
       {isLoadingList ? (
         <div className="listSkeleton" aria-busy="true" aria-label="Loading chats">
           <div className="skeletonItem" />
@@ -179,12 +191,16 @@ const ChatList = () => {
         <p className="emptyState">
           {searchQuery
             ? "No chats match your search."
-            : "No chats yet. Tap + to start one."}
+            : showArchived
+              ? "No archived chats."
+              : "No chats yet. Tap + to start one."}
         </p>
       ) : (
         filteredChats.map((chat) => (
           <div
-            className={`item${!chat.isSeen ? " unread" : ""}`}
+            className={`item${!chat.isSeen ? " unread" : ""}${
+              chat.muted ? " muted" : ""
+            }`}
             key={chat.chatId}
             onClick={() => handleSelectChat(chat)}
             onKeyDown={(e) => {
@@ -197,6 +213,8 @@ const ChatList = () => {
             tabIndex={0}
             aria-label={`Open chat with ${chat.user.username}${
               !chat.isSeen ? ", unread" : ""
+            }${chat.muted ? ", muted" : ""}${
+              chat.archived ? ", archived" : ""
             }`}
           >
             <img
@@ -205,7 +223,10 @@ const ChatList = () => {
               aria-hidden="true"
             />
             <div className="texts">
-              <span>{chat.user.username}</span>
+              <span>
+                {chat.user.username}
+                {chat.muted ? " · muted" : ""}
+              </span>
               <p>{chat.lastMessage}</p>
             </div>
           </div>
