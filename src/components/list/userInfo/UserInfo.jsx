@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import "./UserInfo.css";
+import { toast } from "react-toastify";
 import { auth } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
+import { cycleTheme } from "../../../lib/theme";
 import EditProfile from "./EditProfile";
 
 const UserInfo = () => {
@@ -12,9 +14,15 @@ const UserInfo = () => {
     await auth.signOut();
   };
 
+  const handleThemeToggle = () => {
+    const next = cycleTheme();
+    toast.info(next === "light" ? "Light theme" : "Dark theme", {
+      autoClose: 1200,
+    });
+  };
+
   return (
     <div className="userInfo">
-      {/* ----- USER INFO ----- */}
       <div className="user">
         <button
           type="button"
@@ -32,8 +40,16 @@ const UserInfo = () => {
         <h3>{currentUser.username}</h3>
       </div>
 
-      {/* ----- ACTIONS ----- */}
       <div className="actions">
+        <button
+          type="button"
+          className="themeBtn"
+          onClick={handleThemeToggle}
+          aria-label="Toggle theme"
+          title="Toggle theme"
+        >
+          <img src="./theme.png" alt="" aria-hidden="true" />
+        </button>
         <button
           className="btn-lgout"
           type="button"

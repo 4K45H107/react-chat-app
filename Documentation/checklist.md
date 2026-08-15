@@ -133,7 +133,7 @@ Do these only after Phases 1–4. No fixed dates.
 | [ ] | P3 | Group chats |
 | [ ] | P3 | Voice messages |
 | [ ] | P3 | Video / voice calls (replace phone/video placeholders) |
-| [ ] | P3 | Themes |
+| [x] | P3 | Themes |
 | [ ] | P3 | Rate limiting / App Check |
 | [ ] | P3 | CI (lint + tests on PR) |
 

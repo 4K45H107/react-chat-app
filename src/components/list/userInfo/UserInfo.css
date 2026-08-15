@@ -50,11 +50,37 @@
 
   .actions {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .themeBtn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background-color: rgba(17, 25, 40, 0.45);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    &:hover {
+      background-color: rgba(17, 25, 40, 0.65);
+    }
   }
 
   .btn-lgout {
     padding: 8px 14px;
-    background-color: #2462e7;
+    background-color: var(--color-primary);
     border: none;
     outline: none;
     border-radius: 5px;
@@ -64,7 +90,7 @@
     cursor: pointer;
 
     &:hover {
-      background-color: #1b4cb6;
+      background-color: var(--color-primary-hover);
     }
   }
 }
