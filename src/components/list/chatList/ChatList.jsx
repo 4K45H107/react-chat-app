@@ -166,7 +166,7 @@ const ChatList = () => {
             </svg>
           </span>
           <input
-            type="search"
+            type="text"
             placeholder="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

@@ -46,6 +46,19 @@
         flex: 1;
         min-width: 0;
         font-size: 14px;
+        padding: 0;
+        /* Avoid native search icon overlapping placeholder */
+        -webkit-appearance: none;
+        appearance: none;
+
+        &::-webkit-search-decoration,
+        &::-webkit-search-cancel-button,
+        &::-webkit-search-results-button,
+        &::-webkit-search-results-decoration {
+          -webkit-appearance: none;
+          appearance: none;
+          display: none;
+        }
 
         &::placeholder {
           color: var(--color-muted);

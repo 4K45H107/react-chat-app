@@ -359,7 +359,7 @@
       }
     }
 
-    input {
+    .composerInput {
       flex: 1;
       background-color: var(--color-control-bg);
       border: 1px solid var(--color-border);
@@ -411,13 +411,26 @@
         color: initial;
         filter: none;
 
-        /* Never invert emoji-picker assets in light mode */
+        /* Isolate picker from composer styles */
+        input {
+          flex: initial;
+          width: 100%;
+          box-sizing: border-box;
+          background: #fff;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          color: #111;
+          padding: 8px 12px 8px 36px;
+          font-size: 14px;
+        }
+
         img,
         svg,
         canvas {
           filter: none !important;
           width: auto;
           height: auto;
+          max-width: none;
           cursor: default;
         }
       }
@@ -438,7 +451,7 @@
       }
     }
 
-    &.disabled input {
+    &.disabled .composerInput {
       cursor: not-allowed;
       opacity: 0.6;
     }

@@ -601,7 +601,7 @@ const Chat = () => {
       {threadSearchOpen && (
         <div className="threadSearch" role="search">
           <input
-            type="search"
+            type="text"
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
             placeholder="Search in this chat…"
@@ -799,6 +799,7 @@ const Chat = () => {
           <img src="./mic.png" alt="" aria-hidden="true" />
         </div>
         <input
+          className="composerInput"
           type="text"
           value={text || ""}
           placeholder={
