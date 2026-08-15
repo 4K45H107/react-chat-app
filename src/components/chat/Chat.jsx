@@ -23,10 +23,42 @@ import { isUserOnline, listenUserPresence } from "../../lib/presence";
 import { getStoredTheme } from "../../lib/theme";
 
 const TYPING_TTL_MS = 4000;
+const EMOJI_PICKER_WIDTH = 352;
+const EMOJI_PICKER_PAD = 8;
+
+const getEmojiPickerPosition = (button) => {
+  if (!button) return null;
+
+  const rect = button.getBoundingClientRect();
+  const shellEl = button.closest(".container");
+  const shell = shellEl?.getBoundingClientRect() ?? {
+    left: EMOJI_PICKER_PAD,
+    right: window.innerWidth - EMOJI_PICKER_PAD,
+    top: EMOJI_PICKER_PAD,
+    bottom: window.innerHeight - EMOJI_PICKER_PAD,
+  };
+
+  const minLeft = shell.left + EMOJI_PICKER_PAD;
+  const maxLeft = shell.right - EMOJI_PICKER_WIDTH - EMOJI_PICKER_PAD;
+
+  // Prefer above the button. If that would spill past the app container
+  // right edge, open fully to the left of the button edge.
+  let left = rect.left;
+  if (left + EMOJI_PICKER_WIDTH > shell.right - EMOJI_PICKER_PAD) {
+    left = rect.right - EMOJI_PICKER_WIDTH;
+  }
+
+  left = Math.min(Math.max(minLeft, left), Math.max(minLeft, maxLeft));
+
+  return {
+    left,
+    bottom: Math.max(EMOJI_PICKER_PAD, window.innerHeight - rect.top + EMOJI_PICKER_PAD),
+  };
+};
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
-  const [emojiPickerPos, setEmojiPickerPos] = useState({ bottom: 80, left: 16 });
+  const [emojiPickerPos, setEmojiPickerPos] = useState(null);
   const emojiButtonRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const [text, setText] = useState("");
@@ -357,38 +389,9 @@ const Chat = () => {
   useEffect(() => {
     if (!openEmoji) return;
 
-    const PICKER_WIDTH = 352;
-    const PAD = 8;
-
     const placePicker = () => {
-      const button = emojiButtonRef.current;
-      if (!button) return;
-
-      const rect = button.getBoundingClientRect();
-      const shellEl = button.closest(".container");
-      const shell = shellEl?.getBoundingClientRect() ?? {
-        left: PAD,
-        right: window.innerWidth - PAD,
-        top: PAD,
-        bottom: window.innerHeight - PAD,
-      };
-
-      const minLeft = shell.left + PAD;
-      const maxLeft = shell.right - PICKER_WIDTH - PAD;
-
-      // Prefer sitting above the button. If that would spill past the app
-      // container's right edge, open fully to the left of the button edge.
-      let left = rect.left;
-      if (left + PICKER_WIDTH > shell.right - PAD) {
-        left = rect.right - PICKER_WIDTH;
-      }
-
-      left = Math.min(Math.max(minLeft, left), Math.max(minLeft, maxLeft));
-
-      setEmojiPickerPos({
-        left,
-        bottom: Math.max(PAD, window.innerHeight - rect.top + PAD),
-      });
+      const next = getEmojiPickerPosition(emojiButtonRef.current);
+      if (next) setEmojiPickerPos(next);
     };
 
     placePicker();
@@ -400,6 +403,7 @@ const Chat = () => {
       if (emojiButtonRef.current?.contains(event.target)) return;
       if (emojiPickerRef.current?.contains(event.target)) return;
       setOpenEmoji(false);
+      setEmojiPickerPos(null);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -411,10 +415,26 @@ const Chat = () => {
     };
   }, [openEmoji]);
 
+  const handleToggleEmojiPicker = () => {
+    if (isChatBlocked || isSending) return;
+
+    setOpenEmoji((wasOpen) => {
+      if (wasOpen) {
+        setEmojiPickerPos(null);
+        return false;
+      }
+
+      const next = getEmojiPickerPosition(emojiButtonRef.current);
+      setEmojiPickerPos(next);
+      return Boolean(next);
+    });
+  };
+
   const handleEmoji = (e) => {
     let newText = text + e.emoji;
     setText(newText);
     setOpenEmoji(false);
+    setEmojiPickerPos(null);
   };
 
   const handleSend = async () => {
@@ -869,15 +889,14 @@ const Chat = () => {
             aria-label="Open emoji picker"
             aria-expanded={openEmoji}
             disabled={isChatBlocked || isSending}
-            onClick={() =>
-              !isChatBlocked && !isSending && setOpenEmoji((prev) => !prev)
-            }
+            onClick={handleToggleEmojiPicker}
           >
             <span className="emojiGlyph" aria-hidden="true">
               😊
             </span>
           </button>
           {openEmoji &&
+            emojiPickerPos &&
             !isChatBlocked &&
             createPortal(
               <div
@@ -896,7 +915,7 @@ const Chat = () => {
                   }
                   onEmojiClick={handleEmoji}
                   autoFocusSearch={false}
-                  width={352}
+                  width={EMOJI_PICKER_WIDTH}
                   height={420}
                 />
               </div>,
