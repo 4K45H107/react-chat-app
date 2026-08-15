@@ -358,21 +358,36 @@ const Chat = () => {
     if (!openEmoji) return;
 
     const PICKER_WIDTH = 352;
+    const PAD = 8;
 
     const placePicker = () => {
       const button = emojiButtonRef.current;
       if (!button) return;
+
       const rect = button.getBoundingClientRect();
-      // Prefer aligning the picker's right edge to the button (opens leftward
-      // when the details panel is closed and the button sits near the edge).
-      const preferredLeft = rect.right - PICKER_WIDTH;
-      const left = Math.min(
-        Math.max(8, preferredLeft),
-        Math.max(8, window.innerWidth - PICKER_WIDTH - 8)
-      );
+      const shellEl = button.closest(".container");
+      const shell = shellEl?.getBoundingClientRect() ?? {
+        left: PAD,
+        right: window.innerWidth - PAD,
+        top: PAD,
+        bottom: window.innerHeight - PAD,
+      };
+
+      const minLeft = shell.left + PAD;
+      const maxLeft = shell.right - PICKER_WIDTH - PAD;
+
+      // Prefer sitting above the button. If that would spill past the app
+      // container's right edge, open fully to the left of the button edge.
+      let left = rect.left;
+      if (left + PICKER_WIDTH > shell.right - PAD) {
+        left = rect.right - PICKER_WIDTH;
+      }
+
+      left = Math.min(Math.max(minLeft, left), Math.max(minLeft, maxLeft));
+
       setEmojiPickerPos({
         left,
-        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+        bottom: Math.max(PAD, window.innerHeight - rect.top + PAD),
       });
     };
 
