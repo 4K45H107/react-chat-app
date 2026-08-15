@@ -9,8 +9,10 @@
 .addUser {
   width: min(420px, calc(100% - 48px));
   max-height: min(80vh, 80dvh);
-  overflow-y: auto;
-  padding: 40px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 40px 28px 20px;
   background-color: rgba(17, 25, 40, 0.95);
   border: 1px solid #dddddd35;
   border-radius: 10px;
@@ -34,45 +36,64 @@
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   }
 
-  form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+  .searchLabel {
+    color: #cfcfcf;
+    font-size: 13px;
+  }
+
+  #add-user-search {
     width: 100%;
+    box-sizing: border-box;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    background-color: rgb(17, 25, 40, 0.5);
+    color: white;
 
-    input {
-      flex: 1 1 160px;
-      min-width: 0;
-      padding: 14px 16px;
-      border-radius: 10px;
-      border: none;
-      outline: none;
-      background-color: rgb(17, 25, 40, 0.5);
-      color: white;
+    &:disabled {
+      opacity: 0.7;
     }
+  }
 
-    button {
-      flex: 0 0 auto;
-      padding: 14px 20px;
-      border-radius: 10px;
-      background-color: rgb(55, 115, 168);
-      border: none;
-      outline: none;
-      color: white;
-      cursor: pointer;
-      white-space: nowrap;
-    }
+  .userList {
+    flex: 1;
+    min-height: 0;
+    max-height: min(50vh, 360px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    padding-right: 4px;
+  }
+
+  .listHint {
+    margin: 12px 0;
+    color: #a8a8a8;
+    font-size: 14px;
+    text-align: center;
   }
 
   .user {
-    margin-top: 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
     min-width: 0;
+    padding: 10px 8px;
+    border-radius: 10px;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+    }
 
     .details {
       display: flex;
@@ -82,8 +103,8 @@
       flex: 1;
 
       img {
-        width: 50px;
-        height: 50px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         object-fit: cover;
         flex-shrink: 0;

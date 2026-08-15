@@ -1,20 +1,20 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./AddUser.css";
 import { toast } from "react-toastify";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
 import { useUserStore } from "../../../../lib/userStore";
+import { normalizeUser } from "../../../../lib/normalizeUser";
 import { createChat, hasExistingChatWith } from "../../../../lib/chatService";
 
+const USER_LIST_LIMIT = 100;
+
 const AddUser = ({ onClose }) => {
-  const [user, setUser] = useState(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [search, setSearch] = useState("");
+  const [users, setUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [addingUserId, setAddingUserId] = useState(null);
   const { currentUser } = useUserStore();
   // Sync lock — setState alone cannot stop double-clicks in the same tick
   const isAddingRef = useRef(false);
@@ -28,50 +28,58 @@ const AddUser = ({ onClose }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  const handleUserSearch = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    let cancelled = false;
 
-    const formData = new FormData(e.target);
-    const username = String(formData.get("username") ?? "").trim();
+    const loadUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "users"),
+            orderBy("username"),
+            limit(USER_LIST_LIMIT)
+          )
+        );
 
-    if (!username) {
-      setUser(null);
-      toast.warn("Please enter a username to search.");
-      return;
-    }
+        if (cancelled) return;
 
-    try {
-      const userRef = collection(db, "users");
-      const q = query(userRef, where("username", "==", username));
-      const querySnapShot = await getDocs(q);
+        const list = snap.docs
+          .map((userDoc) => normalizeUser({ id: userDoc.id, ...userDoc.data() }))
+          .filter((user) => user?.id && user.id !== currentUser.id);
 
-      if (!querySnapShot.empty) {
-        const foundUser = querySnapShot.docs[0].data();
-
-        if (foundUser.id === currentUser.id) {
-          setUser(null);
-          toast.warn("You can't start a chat with yourself.");
-          return;
+        setUsers(list);
+      } catch (error) {
+        console.error(
+          "[AddUser] Failed to load users:",
+          error.code,
+          error.message,
+          error
+        );
+        if (!cancelled) {
+          toast.error("Failed to load users. Please try again.");
+          setUsers([]);
         }
-
-        setUser(foundUser);
-      } else {
-        setUser(null);
-        console.warn("[AddUser] No user found for username:", username);
-        toast.warn(`No user found with username "${username}"`);
+      } finally {
+        if (!cancelled) setIsLoadingUsers(false);
       }
-    } catch (error) {
-      console.error(
-        "[AddUser] User search failed:",
-        error.code,
-        error.message,
-        error
-      );
-      toast.error("User search failed. Please try again.");
-    }
-  };
+    };
 
-  const handleAdd = async () => {
+    loadUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((user) =>
+      (user.username ?? "").toLowerCase().includes(q)
+    );
+  }, [users, search]);
+
+  const handleAdd = async (user) => {
     if (!user?.id || isAddingRef.current) return;
 
     if (user.id === currentUser.id) {
@@ -80,7 +88,7 @@ const AddUser = ({ onClose }) => {
     }
 
     isAddingRef.current = true;
-    setIsAdding(true);
+    setAddingUserId(user.id);
 
     try {
       const alreadyChatting = await hasExistingChatWith(
@@ -98,8 +106,7 @@ const AddUser = ({ onClose }) => {
         otherUserId: user.id,
       });
 
-      toast.success("Chat created!");
-      setUser(null);
+      toast.success(`Chat with ${user.username} created!`);
       onClose?.();
     } catch (error) {
       console.error(
@@ -111,15 +118,17 @@ const AddUser = ({ onClose }) => {
       toast.error("Failed to create chat. Please try again.");
     } finally {
       isAddingRef.current = false;
-      setIsAdding(false);
+      setAddingUserId(null);
     }
   };
+
+  const isBusy = addingUserId != null;
 
   return createPortal(
     <>
       <div
         className="addUserBackdrop"
-        onClick={() => !isAdding && onClose?.()}
+        onClick={() => !isBusy && onClose?.()}
         aria-hidden="true"
       />
       <div
@@ -133,38 +142,63 @@ const AddUser = ({ onClose }) => {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          disabled={isAdding}
+          disabled={isBusy}
         >
           ×
         </button>
-        <form onSubmit={handleUserSearch}>
-          <input
-            type="text"
-            placeholder="Username"
-            name="username"
-            disabled={isAdding}
-          />
-          <button type="submit" disabled={isAdding}>
-            Search
-          </button>
-        </form>
 
-        {user && (
-          <div className="user">
-            <div className="details">
-              <img src={user.avatar || "./avatar.png"} alt="" />
-              <span>{user.username}</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={isAdding}
-              aria-busy={isAdding}
-            >
-              {isAdding ? "…" : "+"}
-            </button>
-          </div>
-        )}
+        <label className="searchLabel" htmlFor="add-user-search">
+          Find people
+        </label>
+        <input
+          id="add-user-search"
+          type="search"
+          placeholder="Filter by username…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          disabled={isBusy}
+          autoComplete="off"
+          aria-label="Filter users by username"
+        />
+
+        <div className="userList" role="list" aria-label="Suggested users">
+          {isLoadingUsers ? (
+            <p className="listHint" aria-busy="true">
+              Loading users…
+            </p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="listHint">
+              {users.length === 0
+                ? "No other users yet."
+                : `No usernames match “${search.trim()}”.`}
+            </p>
+          ) : (
+            filteredUsers.map((user) => {
+              const rowBusy = addingUserId === user.id;
+              return (
+                <div className="user" key={user.id} role="listitem">
+                  <div className="details">
+                    <img
+                      src={user.avatar || "./avatar.png"}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    <span>{user.username}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAdd(user)}
+                    disabled={isBusy}
+                    aria-label={`Start chat with ${user.username}`}
+                    aria-busy={rowBusy}
+                  >
+                    {rowBusy ? "…" : "+"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </>,
     document.body
