@@ -3,25 +3,16 @@ import "./Login.css";
 import { toast } from "react-toastify";
 import {
   createUserWithEmailAndPassword,
-  deleteUser,
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import upload from "../../lib/upload";
 import { useUserStore } from "../../lib/userStore";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
-const MIN_USERNAME_LENGTH = 3;
+const MIN_USERNAME_LENGTH = 2;
 
 const authErrorMessage = (error) => {
   switch (error.code) {
@@ -100,13 +91,13 @@ const Login = () => {
     const password = String(formData.get("password") ?? "");
 
     if (!username || !email || !password) {
-      toast.warn("Username, email, and password are required.");
+      toast.warn("Display name, email, and password are required.");
       return;
     }
 
     if (username.length < MIN_USERNAME_LENGTH) {
       toast.warn(
-        `Username must be at least ${MIN_USERNAME_LENGTH} characters.`
+        `Display name must be at least ${MIN_USERNAME_LENGTH} characters.`
       );
       return;
     }
@@ -126,19 +117,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Auth is required to read users (see firestore.rules), so create the
-      // Auth account first, then reject duplicate usernames and roll back.
+      // Email/password is the login identity; username is only a display name.
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-      const usernameSnap = await getDocs(
-        query(collection(db, "users"), where("username", "==", username))
-      );
-
-      if (!usernameSnap.empty) {
-        await deleteUser(cred.user);
-        toast.warn("That username is already taken. Please choose another.");
-        return;
-      }
 
       // Write profile before avatar upload so auth bootstrap can find the doc
       // (onAuthStateChanged fires as soon as Auth is created).
@@ -219,10 +199,10 @@ const Login = () => {
           <form onSubmit={handleRegister}>
             <input
               type="text"
-              placeholder="Username"
+              placeholder="Display name"
               className="username"
               name="username"
-              autoComplete="username"
+              autoComplete="nickname"
             />
             <input
               type="email"

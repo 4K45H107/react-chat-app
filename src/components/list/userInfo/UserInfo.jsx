@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import "./UserInfo.css";
 import { auth } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
+import EditProfile from "./EditProfile";
 
 const UserInfo = () => {
   const { currentUser } = useUserStore();
+  const [editOpen, setEditOpen] = useState(false);
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -14,11 +16,19 @@ const UserInfo = () => {
     <div className="userInfo">
       {/* ----- USER INFO ----- */}
       <div className="user">
-        <img
-          src={currentUser.avatar || "./avatar.png"}
-          alt=""
-          aria-hidden="true"
-        />
+        <button
+          type="button"
+          className="avatarBtn"
+          onClick={() => setEditOpen(true)}
+          aria-label="Edit profile"
+          title="Edit profile"
+        >
+          <img
+            src={currentUser.avatar || "./avatar.png"}
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
         <h3>{currentUser.username}</h3>
       </div>
 
@@ -33,6 +43,8 @@ const UserInfo = () => {
           Log Out
         </button>
       </div>
+
+      {editOpen && <EditProfile onClose={() => setEditOpen(false)} />}
     </div>
   );
 };
