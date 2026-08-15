@@ -48,6 +48,12 @@
     "Lucida Sans Unicode", Geneva, Verdana, sans-serif;
 }
 
+html {
+  /* Prevent layout jump when a vertical scrollbar appears/disappears */
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
@@ -65,6 +71,11 @@ body {
   min-height: 100dvh;
   padding: 16px;
   color: var(--color-text);
+  overflow-x: hidden;
+}
+
+body.emoji-picker-open {
+  overflow: hidden;
 }
 
 .container,

@@ -524,4 +524,6 @@
   z-index: 1000;
   filter: none;
   color: initial;
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
 }

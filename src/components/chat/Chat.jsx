@@ -357,14 +357,18 @@ const Chat = () => {
   useEffect(() => {
     if (!openEmoji) return;
 
+    const PICKER_WIDTH = 352;
+
     const placePicker = () => {
       const button = emojiButtonRef.current;
       if (!button) return;
       const rect = button.getBoundingClientRect();
-      const pickerWidth = 350;
+      // Prefer aligning the picker's right edge to the button (opens leftward
+      // when the details panel is closed and the button sits near the edge).
+      const preferredLeft = rect.right - PICKER_WIDTH;
       const left = Math.min(
-        Math.max(8, rect.left),
-        window.innerWidth - pickerWidth - 8
+        Math.max(8, preferredLeft),
+        Math.max(8, window.innerWidth - PICKER_WIDTH - 8)
       );
       setEmojiPickerPos({
         left,
@@ -373,6 +377,7 @@ const Chat = () => {
     };
 
     placePicker();
+    document.body.classList.add("emoji-picker-open");
     window.addEventListener("resize", placePicker);
     window.addEventListener("scroll", placePicker, true);
 
@@ -384,6 +389,7 @@ const Chat = () => {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
+      document.body.classList.remove("emoji-picker-open");
       window.removeEventListener("resize", placePicker);
       window.removeEventListener("scroll", placePicker, true);
       document.removeEventListener("mousedown", handleClickOutside);
@@ -874,6 +880,9 @@ const Chat = () => {
                     getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
                   }
                   onEmojiClick={handleEmoji}
+                  autoFocusSearch={false}
+                  width={352}
+                  height={420}
                 />
               </div>,
               document.body
