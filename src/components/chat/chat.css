@@ -281,10 +281,10 @@
             width: 100%;
             box-sizing: border-box;
             padding: 12px 14px;
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            border: 1px solid var(--color-border);
             border-radius: 10px;
-            background: rgba(17, 25, 40, 0.75);
-            color: white;
+            background: var(--color-control-bg);
+            color: var(--color-text);
             outline: none;
           }
 
@@ -296,7 +296,7 @@
             button {
               border: none;
               background: transparent;
-              color: #c9c9c9;
+              color: var(--color-meta);
               font-size: 12px;
               cursor: pointer;
               text-decoration: underline;
