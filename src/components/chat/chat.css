@@ -206,7 +206,8 @@
           color: #aaaaaa;
         }
 
-        .deleteMessage {
+        .deleteMessage,
+        .editMessage {
           border: none;
           background: transparent;
           color: #c9c9c9;
@@ -217,6 +218,43 @@
 
           &:hover {
             color: #ffb4b4;
+          }
+        }
+
+        .editMessage:hover {
+          color: #b4d4ff;
+        }
+
+        .editComposer {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: min(280px, 70vw);
+
+          input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(17, 25, 40, 0.75);
+            color: white;
+            outline: none;
+          }
+
+          .editActions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+
+            button {
+              border: none;
+              background: transparent;
+              color: #c9c9c9;
+              font-size: 12px;
+              cursor: pointer;
+              text-decoration: underline;
+            }
           }
         }
       }

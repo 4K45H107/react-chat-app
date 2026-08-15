@@ -143,6 +143,22 @@ export const deleteMessage = async (chatId, message) => {
   });
 };
 
+/** Edit own message text (not allowed on deleted messages). */
+export const editMessage = async (chatId, message, text) => {
+  const nextText = String(text ?? "").trim();
+  if (!message?.id || !nextText || message.deleted) return;
+
+  await updateDoc(doc(db, "chats", chatId, "messages", message.id), {
+    id: message.id,
+    senderId: message.senderId,
+    text: nextText,
+    edited: true,
+    editedAt: serverTimestamp(),
+    createdAt: message.createdAt ?? serverTimestamp(),
+    ...(message.img ? { img: message.img } : {}),
+  });
+};
+
 /** Listen to the newest page of messages (newest-first query, reversed in callback). */
 export const listenLatestMessages = (chatId, { onData, onError }) => {
   const messagesQuery = query(

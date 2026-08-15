@@ -8,6 +8,7 @@ import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
 import {
   deleteMessage,
+  editMessage,
   listenChatTyping,
   listenLatestMessages,
   loadOlderMessages,
@@ -28,6 +29,8 @@ const Chat = () => {
   const [olderMessages, setOlderMessages] = useState([]);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editText, setEditText] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
@@ -418,6 +421,10 @@ const Chat = () => {
     }
 
     try {
+      if (editingMessageId === message.id) {
+        setEditingMessageId(null);
+        setEditText("");
+      }
       await deleteMessage(chatId, message);
     } catch (error) {
       console.error(
@@ -427,6 +434,45 @@ const Chat = () => {
         error
       );
       toast.error("Failed to delete message. Please try again.");
+    }
+  };
+
+  const handleStartEdit = (message) => {
+    if (!message?.id || message.senderId !== currentUser.id || message.deleted) {
+      return;
+    }
+    setEditingMessageId(message.id);
+    setEditText(message.text ?? "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = async (message) => {
+    const nextText = editText.trim();
+    if (!message?.id || !nextText) {
+      toast.warn("Message cannot be empty.");
+      return;
+    }
+
+    if (nextText === (message.text ?? "")) {
+      handleCancelEdit();
+      return;
+    }
+
+    try {
+      await editMessage(chatId, message, nextText);
+      handleCancelEdit();
+    } catch (error) {
+      console.error(
+        "[Chat] Failed to edit message:",
+        error.code,
+        error.message,
+        error
+      );
+      toast.error("Failed to edit message. Please try again.");
     }
   };
 
@@ -500,7 +546,10 @@ const Chat = () => {
             No messages yet. Say hello to start the conversation.
           </p>
         )}
-        {messages.map((message, index) => (
+        {messages.map((message, index) => {
+          const isEditing = editingMessageId === message.id;
+
+          return (
           <div
             className={`message ${
               message.senderId === currentUser.id ? "own" : ""
@@ -510,6 +559,35 @@ const Chat = () => {
             <div className="texts">
               {message.deleted ? (
                 <p className="deletedText">Message deleted</p>
+              ) : isEditing ? (
+                <div className="editComposer">
+                  <input
+                    type="text"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveEdit(message);
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        handleCancelEdit();
+                      }
+                    }}
+                    maxLength={2000}
+                    aria-label="Edit message"
+                    autoFocus
+                  />
+                  <div className="editActions">
+                    <button type="button" onClick={handleCancelEdit}>
+                      Cancel
+                    </button>
+                    <button type="button" onClick={() => handleSaveEdit(message)}>
+                      Save
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   {message.img ? (
@@ -530,21 +608,37 @@ const Chat = () => {
                 </>
               )}
               <div className="messageMeta">
-                <span>{formatMessageTime(message.createdAt)}</span>
-                {message.senderId === currentUser.id && !message.deleted && (
-                  <button
-                    type="button"
-                    className="deleteMessage"
-                    onClick={() => handleDeleteMessage(message)}
-                    aria-label="Delete message"
-                  >
-                    Delete
-                  </button>
-                )}
+                <span>
+                  {formatMessageTime(message.createdAt)}
+                  {message.edited && !message.deleted ? " · edited" : ""}
+                </span>
+                {message.senderId === currentUser.id &&
+                  !message.deleted &&
+                  !isEditing && (
+                    <>
+                      <button
+                        type="button"
+                        className="editMessage"
+                        onClick={() => handleStartEdit(message)}
+                        aria-label="Edit message"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="deleteMessage"
+                        onClick={() => handleDeleteMessage(message)}
+                        aria-label="Delete message"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         <div ref={endRef} />
       </div>
 

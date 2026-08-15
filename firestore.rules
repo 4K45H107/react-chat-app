@@ -75,15 +75,30 @@ service cloud.firestore {
               && request.resource.data.img.size() <= 2048
             )
           );
-        // Soft-delete: sender may mark own message deleted
+        // Soft-delete or text edit: sender only
         allow update: if canAccessChat(chatId)
           && resource.data.senderId == request.auth.uid
           && request.resource.data.senderId == resource.data.senderId
           && request.resource.data.id == resource.data.id
-          && request.resource.data.deleted == true
-          && request.resource.data.text is string
-          && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'deleted'])
-          && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img']);
+          && (
+            (
+              request.resource.data.deleted == true
+              && request.resource.data.text is string
+              && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'deleted'])
+              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img'])
+            )
+            ||
+            (
+              (!('deleted' in resource.data) || resource.data.deleted != true)
+              && !('deleted' in request.resource.data)
+              && request.resource.data.edited == true
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 2000
+              && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'edited'])
+              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'edited', 'editedAt', 'img'])
+            )
+          );
         allow delete: if false;
       }
     }

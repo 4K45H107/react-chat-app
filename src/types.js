@@ -23,6 +23,8 @@
  * @property {string} text
  * @property {string} [img]
  * @property {boolean} [deleted]
+ * @property {boolean} [edited]
+ * @property {import("firebase/firestore").Timestamp|Date|null} [editedAt]
  * @property {import("firebase/firestore").Timestamp|Date|null} [createdAt]
  *
  * @typedef {Object} ChatDoc
