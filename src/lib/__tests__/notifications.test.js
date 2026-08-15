@@ -30,6 +30,19 @@ describe("getUnreadNotificationTargets", () => {
     expect(getUnreadNotificationTargets([chat], previous, "c1")).toEqual([]);
   });
 
+  it("skips already-seen chats", () => {
+    const previous = new Map([
+      ["c1", { updatedAt: 100, lastMessage: "old" }],
+    ]);
+    expect(
+      getUnreadNotificationTargets(
+        [{ ...chat, isSeen: true }],
+        previous,
+        null
+      )
+    ).toEqual([]);
+  });
+
   it("skips muted chats", () => {
     const previous = new Map([
       ["c1", { updatedAt: 100, lastMessage: "old" }],
