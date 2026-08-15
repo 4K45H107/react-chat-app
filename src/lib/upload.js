@@ -2,19 +2,27 @@ import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { storage } from "./firebase";
 
 /**
- * Upload an image to Firebase Storage.
- * Prefer path images/{uid}/... so Storage rules can require ownership.
+ * Upload a file to Firebase Storage.
+ * Prefer paths under {folder}/{uid}/... so Storage rules can require ownership.
+ * @param {File|Blob} file
+ * @param {{ uid?: string, folder?: "images"|"audio", fileName?: string }} [options]
  */
-const upload = async (file, { uid } = {}) => {
+const upload = async (file, { uid, folder = "images", fileName } = {}) => {
   if (!file) return null;
 
-  const safeName = String(file.name || "image").replace(/[^\w.\-]+/g, "_");
+  const safeFolder = folder === "audio" ? "audio" : "images";
+  const rawName = fileName || file.name || (safeFolder === "audio" ? "voice.webm" : "image");
+  const safeName = String(rawName).replace(/[^\w.\-]+/g, "_");
   const path = uid
-    ? `images/${uid}/${Date.now()}_${safeName}`
-    : `images/${Date.now()}_${safeName}`;
+    ? `${safeFolder}/${uid}/${Date.now()}_${safeName}`
+    : `${safeFolder}/${Date.now()}_${safeName}`;
 
   const storageRef = ref(storage, path);
-  const uploadTask = uploadBytesResumable(storageRef, file);
+  const metadata =
+    file.type && typeof file.type === "string"
+      ? { contentType: file.type }
+      : undefined;
+  const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
   return new Promise((resolve, reject) => {
     uploadTask.on(
@@ -22,7 +30,7 @@ const upload = async (file, { uid } = {}) => {
       () => {},
       (error) => {
         console.error(
-          "[upload] Image upload failed:",
+          "[upload] Upload failed:",
           error.code,
           error.message,
           error

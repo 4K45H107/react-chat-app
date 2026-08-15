@@ -283,6 +283,8 @@ export const sendMessage = async ({
   senderId,
   text = "",
   img,
+  audio,
+  audioDuration,
 }) => {
   const messageId = crypto.randomUUID();
   await setDoc(doc(db, "chats", chatId, "messages", messageId), {
@@ -290,6 +292,8 @@ export const sendMessage = async ({
     senderId,
     text,
     ...(img ? { img } : {}),
+    ...(audio ? { audio } : {}),
+    ...(typeof audioDuration === "number" ? { audioDuration } : {}),
     createdAt: serverTimestamp(),
   });
   return messageId;
@@ -306,6 +310,8 @@ export const deleteMessage = async (chatId, message) => {
     deleted: true,
     createdAt: message.createdAt ?? serverTimestamp(),
     img: deleteField(),
+    audio: deleteField(),
+    audioDuration: deleteField(),
   });
 };
 
@@ -322,6 +328,10 @@ export const editMessage = async (chatId, message, text) => {
     editedAt: serverTimestamp(),
     createdAt: message.createdAt ?? serverTimestamp(),
     ...(message.img ? { img: message.img } : {}),
+    ...(message.audio ? { audio: message.audio } : {}),
+    ...(typeof message.audioDuration === "number"
+      ? { audioDuration: message.audioDuration }
+      : {}),
   });
 };
 

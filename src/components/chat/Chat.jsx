@@ -8,6 +8,11 @@ import { useUserStore } from "../../lib/userStore";
 import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
 import {
+  extensionForAudioMime,
+  formatAudioClock,
+  pickAudioMimeType,
+} from "../../lib/audioRecord";
+import {
   deleteMessage,
   editMessage,
   listenChatTyping,
@@ -25,6 +30,7 @@ import { getStoredTheme } from "../../lib/theme";
 const TYPING_TTL_MS = 4000;
 const EMOJI_PICKER_WIDTH = 352;
 const EMOJI_PICKER_PAD = 8;
+const MAX_VOICE_SECONDS = 120;
 
 const getEmojiPickerPosition = (button) => {
   if (!button) return null;
@@ -74,6 +80,8 @@ const Chat = () => {
   const [hasMore, setHasMore] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
 
   const {
     chatId,
@@ -117,6 +125,13 @@ const Chat = () => {
   const isLoadingOlderRef = useRef(false);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordTimerRef = useRef(null);
+  const recordStartedAtRef = useRef(0);
+  const recordMimeRef = useRef("");
+  const shouldSendRecordingRef = useRef(false);
 
   const olderIds = new Set(olderMessages.map((message) => message.id));
   const messages = [
@@ -164,6 +179,8 @@ const Chat = () => {
     setThreadSearchOpen(false);
     setThreadSearch("");
     setActiveMatchIndex(0);
+    setIsRecording(false);
+    setRecordSeconds(0);
     oldestDocRef.current = null;
     hasLoadedOlderRef.current = false;
     shouldStickToBottomRef.current = true;
@@ -266,6 +283,198 @@ const Chat = () => {
       await setTypingStatus(chatId, currentUser.id, false);
     } catch (error) {
       console.warn("[Chat] Failed to clear typing:", error.code, error.message);
+    }
+  };
+
+  const stopMediaTracks = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+  };
+
+  const clearRecordTimer = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  };
+
+  const cancelRecording = () => {
+    shouldSendRecordingRef.current = false;
+    clearRecordTimer();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    stopMediaTracks();
+    setIsRecording(false);
+    setRecordSeconds(0);
+  };
+
+  useEffect(() => {
+    return () => {
+      cancelRecording();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount cleanup only
+  }, []);
+
+  useEffect(() => {
+    if (!chatId) return;
+    cancelRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on chat switch
+  }, [chatId]);
+
+  const handleStartRecording = async () => {
+    if (
+      isChatBlocked ||
+      isSending ||
+      isRecording ||
+      !canSend ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      if (typeof MediaRecorder === "undefined") {
+        toast.warn("Voice messages are not supported in this browser.");
+      }
+      return;
+    }
+
+    const mimeType = pickAudioMimeType();
+    if (!mimeType) {
+      toast.warn("Voice recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      await clearOwnTyping();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      audioChunksRef.current = [];
+      recordMimeRef.current = mimeType;
+      shouldSendRecordingRef.current = false;
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) audioChunksRef.current.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        clearRecordTimer();
+        stopMediaTracks();
+        const chunks = audioChunksRef.current;
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        setIsRecording(false);
+
+        const shouldSend = shouldSendRecordingRef.current;
+        shouldSendRecordingRef.current = false;
+        const durationSec = Math.max(
+          1,
+          Math.round((Date.now() - recordStartedAtRef.current) / 1000)
+        );
+        setRecordSeconds(0);
+
+        if (!shouldSend || !chunks.length) return;
+
+        const blob = new Blob(chunks, { type: recordMimeRef.current || "audio/webm" });
+        if (blob.size < 200) {
+          toast.warn("Recording was too short. Try again.");
+          return;
+        }
+
+        setIsSending(true);
+        shouldStickToBottomRef.current = true;
+        try {
+          const ext = extensionForAudioMime(blob.type);
+          const file = new File([blob], `voice.${ext}`, {
+            type: blob.type || "audio/webm",
+          });
+          const audioUrl = await upload(file, {
+            uid: currentUser.id,
+            folder: "audio",
+            fileName: `voice.${ext}`,
+          });
+          if (!audioUrl) {
+            toast.error("Failed to upload voice message. Please try again.");
+            return;
+          }
+
+          await sendMessage({
+            chatId,
+            senderId: currentUser.id,
+            text: "",
+            audio: audioUrl,
+            audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
+          });
+          await syncSidebarPreview({
+            chatId,
+            currentUserId: currentUser.id,
+            preview: "Voice message",
+          });
+        } catch (error) {
+          console.error(
+            "[Chat] Failed to send voice message:",
+            error.code || error,
+            error.message || error
+          );
+          toast.error("Failed to send voice message. Please try again.");
+        } finally {
+          setIsSending(false);
+        }
+      };
+
+      recorder.start(250);
+      recordStartedAtRef.current = Date.now();
+      setRecordSeconds(0);
+      setIsRecording(true);
+      clearRecordTimer();
+      recordTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor(
+          (Date.now() - recordStartedAtRef.current) / 1000
+        );
+        setRecordSeconds(elapsed);
+        if (elapsed >= MAX_VOICE_SECONDS) {
+          shouldSendRecordingRef.current = true;
+          if (mediaRecorderRef.current?.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          }
+        }
+      }, 250);
+    } catch (error) {
+      console.error(
+        "[Chat] Microphone permission / start failed:",
+        error.name,
+        error.message
+      );
+      stopMediaTracks();
+      setIsRecording(false);
+      if (error?.name === "NotAllowedError") {
+        toast.error("Microphone permission is required for voice messages.");
+      } else {
+        toast.error("Could not start recording. Please try again.");
+      }
+    }
+  };
+
+  const handleSendRecording = () => {
+    if (!isRecording || !mediaRecorderRef.current) return;
+    shouldSendRecordingRef.current = true;
+    clearRecordTimer();
+    try {
+      if (mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (error) {
+      console.warn("[Chat] Failed to stop recorder:", error);
+      cancelRecording();
     }
   };
 
@@ -857,6 +1066,21 @@ const Chat = () => {
                       />
                     </a>
                   ) : null}
+                  {message.audio ? (
+                    <div className="voiceMessage">
+                      <audio
+                        controls
+                        preload="metadata"
+                        src={message.audio}
+                        aria-label="Voice message"
+                      />
+                      {typeof message.audioDuration === "number" ? (
+                        <span className="voiceDuration">
+                          {formatAudioClock(message.audioDuration)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {message.text ? <p>{message.text}</p> : null}
                 </>
               )}
@@ -869,14 +1093,16 @@ const Chat = () => {
                   !message.deleted &&
                   !isEditing && (
                     <>
-                      <button
-                        type="button"
-                        className="editMessage"
-                        onClick={() => handleStartEdit(message)}
-                        aria-label="Edit message"
-                      >
-                        Edit
-                      </button>
+                      {message.text ? (
+                        <button
+                          type="button"
+                          className="editMessage"
+                          onClick={() => handleStartEdit(message)}
+                          aria-label="Edit message"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="deleteMessage"
@@ -896,88 +1122,123 @@ const Chat = () => {
       </div>
 
       <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
-        <div className="icons">
-          <label
-            className={`attachImage${isChatBlocked || isSending ? " disabled" : ""}`}
-            aria-label="Send an image"
-          >
-            <img src="./img.png" alt="" aria-hidden="true" />
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              hidden
-              disabled={isChatBlocked || isSending}
-              onChange={handleImageSelect}
-            />
-          </label>
-          <img src="./camera.png" alt="" aria-hidden="true" />
-          <img src="./mic.png" alt="" aria-hidden="true" />
-        </div>
-        <input
-          className="composerInput"
-          type="text"
-          value={text || ""}
-          placeholder={
-            isChatBlocked
-              ? "Messaging unavailable"
-              : isSending
-                ? "Sending..."
-                : "Type a message..."
-          }
-          onChange={(e) => handleTextChange(e.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          disabled={isChatBlocked || isSending}
-          aria-label="Message"
-        />
-        <div className="emoji">
-          <button
-            ref={emojiButtonRef}
-            type="button"
-            className="emojiToggle"
-            aria-label="Open emoji picker"
-            aria-expanded={openEmoji}
-            disabled={isChatBlocked || isSending}
-            onClick={handleToggleEmojiPicker}
-          >
-            <span className="emojiGlyph" aria-hidden="true">
-              😊
+        {isRecording ? (
+          <div className="voiceRecorder" role="status" aria-live="polite">
+            <span className="recDot" aria-hidden="true" />
+            <span className="recLabel">
+              Recording {formatAudioClock(recordSeconds)}
             </span>
-          </button>
-          {openEmoji &&
-            emojiPickerPos &&
-            !isChatBlocked &&
-            createPortal(
-              <div
-                ref={emojiPickerRef}
-                className="emojiPickerPortal"
-                style={{
-                  left: emojiPickerPos.left,
-                  bottom: emojiPickerPos.bottom,
-                }}
-                role="dialog"
-                aria-label="Emoji picker"
+            <button
+              type="button"
+              className="recCancel"
+              onClick={cancelRecording}
+              disabled={isSending}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="recSend"
+              onClick={handleSendRecording}
+              disabled={isSending || recordSeconds < 1}
+            >
+              Send
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="icons">
+              <label
+                className={`attachImage${isChatBlocked || isSending ? " disabled" : ""}`}
+                aria-label="Send an image"
               >
-                <EmojiPicker
-                  theme={
-                    getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
-                  }
-                  onEmojiClick={handleEmoji}
-                  autoFocusSearch={false}
-                  width={EMOJI_PICKER_WIDTH}
-                  height={420}
+                <img src="./img.png" alt="" aria-hidden="true" />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={isChatBlocked || isSending}
+                  onChange={handleImageSelect}
                 />
-              </div>,
-              document.body
-            )}
-        </div>
-        <button
-          className="sendButton"
-          onClick={handleSend}
-          disabled={isChatBlocked || isSending}
-        >
-          {isSending ? "Sending..." : "Send"}
-        </button>
+              </label>
+              <img src="./camera.png" alt="" aria-hidden="true" />
+              <button
+                type="button"
+                className="micButton"
+                onClick={handleStartRecording}
+                disabled={isChatBlocked || isSending || !canSend}
+                aria-label="Record voice message"
+              >
+                <img src="./mic.png" alt="" aria-hidden="true" />
+              </button>
+            </div>
+            <input
+              className="composerInput"
+              type="text"
+              value={text || ""}
+              placeholder={
+                isChatBlocked
+                  ? "Messaging unavailable"
+                  : isSending
+                    ? "Sending..."
+                    : "Type a message..."
+              }
+              onChange={(e) => handleTextChange(e.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              disabled={isChatBlocked || isSending}
+              aria-label="Message"
+            />
+            <div className="emoji">
+              <button
+                ref={emojiButtonRef}
+                type="button"
+                className="emojiToggle"
+                aria-label="Open emoji picker"
+                aria-expanded={openEmoji}
+                disabled={isChatBlocked || isSending}
+                onClick={handleToggleEmojiPicker}
+              >
+                <span className="emojiGlyph" aria-hidden="true">
+                  😊
+                </span>
+              </button>
+              {openEmoji &&
+                emojiPickerPos &&
+                !isChatBlocked &&
+                createPortal(
+                  <div
+                    ref={emojiPickerRef}
+                    className="emojiPickerPortal"
+                    style={{
+                      left: emojiPickerPos.left,
+                      bottom: emojiPickerPos.bottom,
+                    }}
+                    role="dialog"
+                    aria-label="Emoji picker"
+                  >
+                    <EmojiPicker
+                      theme={
+                        getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
+                      }
+                      onEmojiClick={handleEmoji}
+                      autoFocusSearch={false}
+                      width={EMOJI_PICKER_WIDTH}
+                      height={420}
+                    />
+                  </div>,
+                  document.body
+                )}
+            </div>
+            <button
+              className="sendButton"
+              onClick={handleSend}
+              disabled={isChatBlocked || isSending}
+            >
+              {isSending ? "Sending..." : "Send"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
