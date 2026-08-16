@@ -43,6 +43,12 @@
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: #111;
   z-index: 2;
+
+  &.isOff {
+    /* Keep element mounted so re-enabling the track restores preview */
+    visibility: hidden;
+    pointer-events: none;
+  }
 }
 
 .voiceStage {

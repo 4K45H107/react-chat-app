@@ -209,10 +209,14 @@ const CallOverlay = () => {
 
   // Attach streams to media elements
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
+    const video = localVideoRef.current;
+    if (!video || !localStream) return;
+    if (video.srcObject !== localStream) {
+      video.srcObject = localStream;
     }
-  }, [localStream, phase]);
+    const playAttempt = video.play();
+    if (playAttempt?.catch) playAttempt.catch(() => {});
+  }, [localStream, phase, cameraOff]);
 
   useEffect(() => {
     if (remoteVideoRef.current) {
@@ -665,10 +669,10 @@ const CallOverlay = () => {
           </div>
         )}
 
-        {callType === "video" && localStream && !cameraOff ? (
+        {callType === "video" && localStream ? (
           <video
             ref={localVideoRef}
-            className="localVideo"
+            className={`localVideo${cameraOff ? " isOff" : ""}`}
             autoPlay
             playsInline
             muted
