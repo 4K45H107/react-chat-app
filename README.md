@@ -1,37 +1,37 @@
 # React Chat App
 
-Real-time messenger built with **React**, **Vite**, **Zustand**, and **Firebase** (Auth, Firestore, Storage), plus **1:1 WebRTC** voice/video calls.
+Real-time messaging app built with React, Vite, Zustand, and Firebase (Auth, Firestore, Storage), including 1:1 WebRTC voice and video calls.
 
-Built as a portfolio project: full chat product surface with security-minded Firestore/Storage rules, paginated message history, and client-side rate limits suitable for Firebase Spark.
+Supports 1:1 and group chats, media and voice messages, presence/typing indicators, and participant-scoped security rules with paginated message history.
 
 ---
 
 ## Features
 
-| Area | What you get |
-|------|----------------|
+| Area | Details |
+|------|---------|
 | Messaging | 1:1 and group chats, Enter-to-send, emoji, soft-delete, edit, in-thread search |
-| Real-time | Live thread + sidebar, typing indicators, online/offline presence |
+| Real-time | Live thread and sidebar, typing indicators, online/offline presence |
 | Media | Image messages, camera capture, voice notes, shared photos grid |
-| Calls | 1:1 voice & video (WebRTC + Firestore signaling), call history in the thread |
-| UX | Unread badges, archive/mute, block/unblock, light/dark themes, browser notifications |
-| Hardening | Participant-scoped rules, message field validation, Storage path locks, upload rate limits |
+| Calls | 1:1 voice and video (WebRTC + Firestore signaling), call history in-thread |
+| UX | Unread state, archive/mute, block/unblock, light/dark themes, browser notifications |
+| Security | Participant-scoped Firestore rules, message field validation, Storage path locks, upload rate limits |
 
 ---
 
-## Stack
+## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| UI | React 18 + Vite 5 + plain CSS |
+| UI | React 18, Vite 5, CSS |
 | State | Zustand |
-| Backend | Firebase Auth, Firestore (offline cache), Storage |
+| Backend | Firebase Auth, Firestore (persistent local cache), Storage |
 | Calls | WebRTC (STUN + public TURN) |
-| Quality | ESLint, Vitest (store/helpers), JSDoc types |
+| Tooling | ESLint, Vitest, JSDoc |
 
 ---
 
-## Architecture (short)
+## Architecture
 
 ```
 React UI  →  Zustand stores  →  chatService / callService  →  Firebase
@@ -39,21 +39,21 @@ React UI  →  Zustand stores  →  chatService / callService  →  Firebase
                          firestore.rules + storage.rules
 ```
 
-- **Messages** live in `chats/{id}/messages` (not one giant chat doc) with live newest page + scroll-up pagination.
-- **Access control** is in security rules: only participants read/write a chat; Storage writes are scoped under the signed-in user.
-- **Calls** use Firestore for offer/answer/ICE; media stays peer-to-peer via WebRTC.
-- Domain logic sits in `src/lib/` (`chatService.js`, `callService.js`, presence, upload, rate limit) so the UI stays thinner than a pure “everything in components” app.
-- The chat UI is split under `src/components/chat/`: `Chat.jsx` orchestrates hooks (`useChatThread`, voice/camera/typing) and presentational pieces (header, message list, composer, camera overlay).
+- Messages are stored in `chats/{id}/messages` with a live newest page and older-page pagination on scroll-up.
+- Access control lives in security rules: only participants can read/write a chat; Storage writes are scoped to the signed-in user.
+- Calls use Firestore for offer/answer/ICE; media stays peer-to-peer via WebRTC.
+- Domain logic is centralized in `src/lib/` (`chatService.js`, `callService.js`, presence, upload, rate limiting).
+- Chat UI under `src/components/chat/` is split into an orchestrator (`Chat.jsx`), feature hooks, and presentational panels (header, message list, composer, camera).
 
-Deeper walkthroughs: [Documentation/](./Documentation/README.md).
+See [Documentation/](./Documentation/README.md) for schemas, flows, and deeper notes.
 
 ---
 
-## Demo notes
+## Limitations
 
-- Best shown with **two accounts** (two browsers or normal + incognito).
-- Calls are **1:1 only** — enough for a portfolio demo, not a production dialer (ringtone/busy/cleanup are client-side; free TURN can still be flaky on some networks).
-- After pulling rules changes, deploy them or local and production will disagree:
+- Voice/video calls are **1:1 only** (not group).
+- Signaling and call cleanup are client-side; connectivity depends on STUN/TURN availability on the network.
+- After changing rules in the repo, deploy them or the live project will not match git:
 
 ```bash
 firebase deploy --only firestore:rules,storage
@@ -61,7 +61,7 @@ firebase deploy --only firestore:rules,storage
 
 ---
 
-## Setup
+## Getting started
 
 ```bash
 npm install
@@ -79,21 +79,21 @@ npm run dev
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Local Vite server |
-| `npm run build` | Production bundle |
-| `npm run preview` | Preview the build |
+| `npm run dev` | Local development server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
-| `npm test` | Vitest unit tests |
+| `npm test` | Unit tests (Vitest) |
 
 ---
 
-## Docs
+## Documentation
 
 | Doc | Contents |
 |-----|----------|
-| [Documentation/README.md](./Documentation/README.md) | Doc index |
+| [Documentation/README.md](./Documentation/README.md) | Index |
 | [documentation.md](./Documentation/documentation.md) | Codebase overview |
 | [firebase.md](./Documentation/firebase.md) | Schemas, rules, deploy |
 | [chat-flow.md](./Documentation/chat-flow.md) | Create / list / send flows |
-| [calls.md](./Documentation/calls.md) | WebRTC call design & limits |
-| [checklist.md](./Documentation/checklist.md) | Build timeline / status |
+| [calls.md](./Documentation/calls.md) | WebRTC call design and limits |
+| [checklist.md](./Documentation/checklist.md) | Implementation status |
