@@ -12,6 +12,7 @@ import {
   formatAudioClock,
   pickAudioMimeType,
 } from "../../lib/audioRecord";
+import { captureVideoFrame, startCameraStream } from "../../lib/cameraCapture";
 import {
   deleteMessage,
   editMessage,
@@ -83,6 +84,9 @@ const Chat = () => {
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState(null);
 
   const {
     chatId,
@@ -133,6 +137,11 @@ const Chat = () => {
   const recordStartedAtRef = useRef(0);
   const recordMimeRef = useRef("");
   const shouldSendRecordingRef = useRef(false);
+  const cameraStreamRef = useRef(null);
+  const cameraSessionRef = useRef(0);
+  const videoRef = useRef(null);
+  const capturedBlobRef = useRef(null);
+  const capturedUrlRef = useRef(null);
 
   const olderIds = new Set(olderMessages.map((message) => message.id));
   const messages = [
@@ -182,6 +191,9 @@ const Chat = () => {
     setActiveMatchIndex(0);
     setIsRecording(false);
     setRecordSeconds(0);
+    setIsCameraOpen(false);
+    setIsCameraStarting(false);
+    setCapturedPhotoUrl(null);
     oldestDocRef.current = null;
     hasLoadedOlderRef.current = false;
     shouldStickToBottomRef.current = true;
@@ -294,6 +306,33 @@ const Chat = () => {
     }
   };
 
+  const stopCameraTracks = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const revokeCapturedPhoto = () => {
+    if (capturedUrlRef.current) {
+      URL.revokeObjectURL(capturedUrlRef.current);
+      capturedUrlRef.current = null;
+    }
+    capturedBlobRef.current = null;
+    setCapturedPhotoUrl(null);
+  };
+
+  const closeCamera = () => {
+    cameraSessionRef.current += 1;
+    stopCameraTracks();
+    revokeCapturedPhoto();
+    setIsCameraOpen(false);
+    setIsCameraStarting(false);
+  };
+
   const clearRecordTimer = () => {
     if (recordTimerRef.current) {
       clearInterval(recordTimerRef.current);
@@ -322,6 +361,7 @@ const Chat = () => {
   useEffect(() => {
     return () => {
       cancelRecording();
+      closeCamera();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount cleanup only
   }, []);
@@ -329,8 +369,29 @@ const Chat = () => {
   useEffect(() => {
     if (!chatId) return;
     cancelRecording();
+    closeCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on chat switch
   }, [chatId]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = cameraStreamRef.current;
+    if (!isCameraOpen || capturedPhotoUrl || !video || !stream) return;
+
+    video.srcObject = stream;
+    const playAttempt = video.play();
+    if (playAttempt?.catch) playAttempt.catch(() => {});
+  }, [isCameraOpen, capturedPhotoUrl, isCameraStarting]);
+
+  useEffect(() => {
+    if (!isCameraOpen) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !isSending) closeCamera();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isCameraOpen, isSending]);
 
   const handleStartRecording = async () => {
     if (
@@ -345,6 +406,8 @@ const Chat = () => {
       }
       return;
     }
+
+    closeCamera();
 
     const mimeType = pickAudioMimeType();
     if (!mimeType) {
@@ -525,6 +588,135 @@ const Chat = () => {
       console.warn("[Chat] Failed to stop recorder:", error);
       cancelRecording();
     }
+  };
+
+  const handleOpenCamera = async () => {
+    if (isChatBlocked || isSending || isCameraOpen || !canSend) return;
+
+    if (isRecording) cancelRecording();
+    setOpenEmoji(false);
+    setEmojiPickerPos(null);
+    await clearOwnTyping();
+
+    setIsCameraOpen(true);
+    setIsCameraStarting(true);
+    revokeCapturedPhoto();
+    const session = ++cameraSessionRef.current;
+
+    try {
+      const stream = await startCameraStream();
+      if (cameraSessionRef.current !== session) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        const playAttempt = videoRef.current.play();
+        if (playAttempt?.catch) playAttempt.catch(() => {});
+      }
+      setIsCameraStarting(false);
+    } catch (error) {
+      if (cameraSessionRef.current !== session) return;
+      console.error(
+        "[Chat] Camera permission / start failed:",
+        error.name,
+        error.message
+      );
+      closeCamera();
+      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") {
+        toast.error("Camera permission is required to take a photo.");
+      } else if (error?.name === "NotFoundError") {
+        toast.error("No camera was found on this device.");
+      } else if (error?.name === "NotSupportedError") {
+        toast.warn("Camera is not supported in this browser.");
+      } else {
+        toast.error("Could not open the camera. Please try again.");
+      }
+    }
+  };
+
+  const handleCapturePhoto = async () => {
+    const video = videoRef.current;
+    if (!video || isSending || isCameraStarting) return;
+
+    try {
+      const blob = await captureVideoFrame(video);
+      revokeCapturedPhoto();
+      capturedBlobRef.current = blob;
+      const url = URL.createObjectURL(blob);
+      capturedUrlRef.current = url;
+      setCapturedPhotoUrl(url);
+    } catch (error) {
+      console.error("[Chat] Failed to capture photo:", error.message || error);
+      toast.error("Could not capture photo. Please try again.");
+    }
+  };
+
+  const handleRetakePhoto = () => {
+    if (isSending) return;
+    revokeCapturedPhoto();
+  };
+
+  const sendImageFile = async (file) => {
+    if (!file || !canSend || isChatBlocked || isSending) return false;
+
+    if (!file.type.startsWith("image/")) {
+      toast.warn("Please choose an image file.");
+      return false;
+    }
+
+    setIsSending(true);
+    shouldStickToBottomRef.current = true;
+    try {
+      await clearOwnTyping();
+      const imgUrl = await upload(file, { uid: currentUser.id });
+      if (!imgUrl) {
+        toast.error("Failed to upload image. Please try again.");
+        return false;
+      }
+
+      const caption = text.trim();
+      await sendMessage({
+        chatId,
+        senderId: currentUser.id,
+        text: caption,
+        img: imgUrl,
+      });
+      await syncSidebarPreview({
+        chatId,
+        currentUserId: currentUser.id,
+        preview: caption || "Photo",
+      });
+      setText("");
+      return true;
+    } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return false;
+      }
+      console.error(
+        "[Chat] Failed to send image:",
+        error.code || error,
+        error.message || error
+      );
+      toast.error("Failed to send image. Please try again.");
+      return false;
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendCapturedPhoto = async () => {
+    const blob = capturedBlobRef.current;
+    if (!blob || isSending) return;
+
+    const file = new File([blob], `photo-${Date.now()}.jpg`, {
+      type: blob.type || "image/jpeg",
+    });
+    const sent = await sendImageFile(file);
+    if (sent) closeCamera();
   };
 
   const handleTextChange = (value) => {
@@ -764,51 +956,7 @@ const Chat = () => {
   const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !canSend || isChatBlocked || isSending) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.warn("Please choose an image file.");
-      return;
-    }
-
-    setIsSending(true);
-    shouldStickToBottomRef.current = true;
-    try {
-      await clearOwnTyping();
-      const imgUrl = await upload(file, { uid: currentUser.id });
-      if (!imgUrl) {
-        toast.error("Failed to upload image. Please try again.");
-        return;
-      }
-
-      const caption = text.trim();
-      await sendMessage({
-        chatId,
-        senderId: currentUser.id,
-        text: caption,
-        img: imgUrl,
-      });
-      await syncSidebarPreview({
-        chatId,
-        currentUserId: currentUser.id,
-        preview: caption || "Photo",
-      });
-      setText("");
-    } catch (error) {
-      const limited = rateLimitToastMessage(error);
-      if (limited) {
-        toast.warn(limited);
-        return;
-      }
-      console.error(
-        "[Chat] Failed to send image:",
-        error.code || error,
-        error.message || error
-      );
-      toast.error("Failed to send image. Please try again.");
-    } finally {
-      setIsSending(false);
-    }
+    await sendImageFile(file);
   };
 
   const handleComposerKeyDown = (e) => {
@@ -890,6 +1038,69 @@ const Chat = () => {
 
   return (
     <div className="chat">
+      {isCameraOpen && (
+        <div
+          className="cameraOverlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Take a photo"
+        >
+          <div className="cameraStage">
+            {capturedPhotoUrl ? (
+              <img src={capturedPhotoUrl} alt="Captured photo preview" />
+            ) : isCameraStarting ? (
+              <p className="cameraStatus">Starting camera…</p>
+            ) : (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                aria-label="Camera preview"
+              />
+            )}
+          </div>
+          <div className="cameraActions">
+            <button
+              type="button"
+              className="cameraCancel"
+              onClick={closeCamera}
+              disabled={isSending}
+            >
+              Cancel
+            </button>
+            {capturedPhotoUrl ? (
+              <>
+                <button
+                  type="button"
+                  className="cameraCancel"
+                  onClick={handleRetakePhoto}
+                  disabled={isSending}
+                >
+                  Retake
+                </button>
+                <button
+                  type="button"
+                  className="cameraSend"
+                  onClick={handleSendCapturedPhoto}
+                  disabled={isSending}
+                >
+                  {isSending ? "Sending..." : "Send"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="cameraSend"
+                onClick={handleCapturePhoto}
+                disabled={isSending || isCameraStarting}
+              >
+                Capture
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {/* ------ TOP ------ */}
       <div className="top">
         <button
@@ -1236,7 +1447,15 @@ const Chat = () => {
                   onChange={handleImageSelect}
                 />
               </label>
-              <img src="./camera.png" alt="" aria-hidden="true" />
+              <button
+                type="button"
+                className="cameraButton"
+                onClick={handleOpenCamera}
+                disabled={isChatBlocked || isSending || !canSend}
+                aria-label="Take a photo"
+              >
+                <img src="./camera.png" alt="" aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 className="micButton"
