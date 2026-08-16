@@ -11,6 +11,7 @@ import {
   listenCall,
   listenIceCandidates,
   listenIncomingCalls,
+  postCallHistoryMessage,
   setCallAnswer,
   updateCallStatus,
 } from "../../lib/callService";
@@ -135,8 +136,33 @@ const CallOverlay = () => {
     async (status = "ended") => {
       if (endingRef.current) return;
       endingRef.current = true;
-      const id = useCallStore.getState().callId;
+
+      const state = useCallStore.getState();
+      const id = state.callId;
       const me = currentUser?.id;
+      const durationSec = activeSinceRef.current
+        ? Math.max(0, Math.round((Date.now() - activeSinceRef.current) / 1000))
+        : 0;
+
+      if (id && me && state.chatId && state.callType) {
+        try {
+          await postCallHistoryMessage({
+            chatId: state.chatId,
+            callId: id,
+            senderId: me,
+            type: state.callType,
+            status,
+            durationSec: status === "ended" ? durationSec : undefined,
+          });
+        } catch (error) {
+          console.warn(
+            "[Call] Failed to post call history:",
+            error.code,
+            error.message
+          );
+        }
+      }
+
       cleanupMedia();
       if (id && me) {
         try {
@@ -339,8 +365,37 @@ const CallOverlay = () => {
         ) {
           logCall("remote status →", call.status);
           if (!endingRef.current) {
+            endingRef.current = true;
+            const state = useCallStore.getState();
+            const me = myUidRef.current || useUserStore.getState().currentUser?.id;
+            const durationSec = activeSinceRef.current
+              ? Math.max(
+                  0,
+                  Math.round((Date.now() - activeSinceRef.current) / 1000)
+                )
+              : 0;
+            if (me && state.chatId && state.callType && state.callId) {
+              postCallHistoryMessage({
+                chatId: state.chatId,
+                callId: state.callId,
+                senderId: me,
+                type: state.callType,
+                status: call.status,
+                durationSec:
+                  call.status === "ended" ? durationSec : undefined,
+              }).catch((error) => {
+                console.warn(
+                  "[Call] Failed to post call history:",
+                  error.code,
+                  error.message
+                );
+              });
+            }
             cleanupMedia();
             resetCall();
+            endingRef.current = false;
+            activeSinceRef.current = null;
+            setElapsedSec(0);
           }
           return;
         }

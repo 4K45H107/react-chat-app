@@ -16,9 +16,13 @@
 - STUN + free public TURN (Metered Open Relay) for better connectivity across networks
 - Not a production dialer — enough for a portfolio demo
 
-If the UI said “Connecting…” then vanished before: the peer connection failed and
-the app used to auto-hang-up. It now keeps the overlay and shows **Connection failed**.
-Check the browser console for `[Call] connectionState: …` logs.
+## Call history in chat
+
+When a call ends (completed, declined, or missed), a centered system-style
+message is written to the thread, e.g. `Voice call · 1:23` or `Missed video call`.
+The sidebar preview updates to that text as well.
+
+Redeploy Firestore rules after pulling this change so `call` message fields are allowed.
 
 ## Files
 

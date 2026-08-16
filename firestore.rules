@@ -81,7 +81,7 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
           && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt'])
-          && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'img', 'audio', 'audioDuration'])
+          && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'img', 'audio', 'audioDuration', 'call'])
           && (
             !('img' in request.resource.data) ||
             (
@@ -105,6 +105,25 @@ service cloud.firestore {
               && request.resource.data.audioDuration >= 0
               && request.resource.data.audioDuration <= 600
             )
+          )
+          && (
+            !('call' in request.resource.data) ||
+            (
+              request.resource.data.call.keys().hasAll(['type', 'status', 'callId'])
+              && request.resource.data.call.keys().hasOnly(['type', 'status', 'callId', 'durationSec'])
+              && request.resource.data.call.type in ['voice', 'video']
+              && request.resource.data.call.status in ['ended', 'declined', 'missed']
+              && request.resource.data.call.callId is string
+              && request.resource.data.call.callId == messageId
+              && (
+                !('durationSec' in request.resource.data.call) ||
+                (
+                  request.resource.data.call.durationSec is number
+                  && request.resource.data.call.durationSec >= 0
+                  && request.resource.data.call.durationSec <= 86400
+                )
+              )
+            )
           );
         // Soft-delete or text edit: sender only
         allow update: if canAccessChat(chatId)
@@ -116,7 +135,7 @@ service cloud.firestore {
               request.resource.data.deleted == true
               && request.resource.data.text is string
               && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'deleted'])
-              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img', 'audio', 'audioDuration'])
+              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img', 'audio', 'audioDuration', 'call'])
             )
             ||
             (
@@ -127,7 +146,7 @@ service cloud.firestore {
               && request.resource.data.text.size() > 0
               && request.resource.data.text.size() <= 2000
               && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'edited'])
-              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'edited', 'editedAt', 'img', 'audio', 'audioDuration'])
+              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'edited', 'editedAt', 'img', 'audio', 'audioDuration', 'call'])
             )
           );
         allow delete: if false;

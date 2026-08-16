@@ -31,6 +31,7 @@
  * @property {string} [img]
  * @property {string} [audio]
  * @property {number} [audioDuration]
+ * @property {{ type: "voice"|"video", status: string, callId: string, durationSec?: number }} [call]
  * @property {boolean} [deleted]
  * @property {boolean} [edited]
  * @property {import("firebase/firestore").Timestamp|Date|null} [editedAt]

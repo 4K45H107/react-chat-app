@@ -312,6 +312,7 @@ export const deleteMessage = async (chatId, message) => {
     img: deleteField(),
     audio: deleteField(),
     audioDuration: deleteField(),
+    call: deleteField(),
   });
 };
 

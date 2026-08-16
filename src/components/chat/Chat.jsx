@@ -1015,6 +1015,7 @@ const Chat = () => {
     if (!message?.id || message.senderId !== currentUser.id || message.deleted) {
       return;
     }
+    if (message.call) return;
     setEditingMessageId(message.id);
     setEditText(message.text ?? "");
   };
@@ -1318,11 +1319,16 @@ const Chat = () => {
             Boolean(message.id) && matchIds.includes(message.id);
           const isActiveMatch =
             isMatch && matchIds[activeMatchIndex] === message.id;
+          const isCallLog = Boolean(message.call) && !message.deleted;
 
           return (
           <div
             className={`message ${
-              message.senderId === currentUser.id ? "own" : ""
+              isCallLog
+                ? "callLog"
+                : message.senderId === currentUser.id
+                  ? "own"
+                  : ""
             }${message.deleted ? " deleted" : ""}${
               isMatch ? " searchMatch" : ""
             }${isActiveMatch ? " searchMatchActive" : ""}`}
@@ -1336,6 +1342,7 @@ const Chat = () => {
             <div className="texts">
               {isGroup &&
                 !message.deleted &&
+                !isCallLog &&
                 message.senderId !== currentUser.id && (
                   <span className="senderName">
                     {memberNameById.get(message.senderId) || "Member"}
@@ -1372,6 +1379,13 @@ const Chat = () => {
                     </button>
                   </div>
                 </div>
+              ) : isCallLog ? (
+                <p className="callLogText">
+                  <span className="callLogIcon" aria-hidden="true">
+                    {message.call?.type === "video" ? "▣" : "☎"}
+                  </span>
+                  {message.text || "Call"}
+                </p>
               ) : (
                 <>
                   {message.img ? (
@@ -1413,7 +1427,8 @@ const Chat = () => {
                 </span>
                 {message.senderId === currentUser.id &&
                   !message.deleted &&
-                  !isEditing && (
+                  !isEditing &&
+                  !isCallLog && (
                     <>
                       {message.text ? (
                         <button

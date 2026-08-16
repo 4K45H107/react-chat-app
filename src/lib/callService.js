@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -10,6 +11,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { syncSidebarPreview } from "./chatService";
+import { formatAudioClock } from "./audioRecord";
 
 /**
  * @typedef {"voice"|"video"} CallMediaType
@@ -145,4 +148,68 @@ export const listenIncomingCalls = (userId, { onData, onError }) => {
     },
     onError
   );
+};
+
+/**
+ * Human-readable call history line for the chat thread / sidebar.
+ * @param {{ type: "voice"|"video", status: string, durationSec?: number|null }} params
+ */
+export const formatCallHistoryText = ({ type, status, durationSec }) => {
+  const kind = type === "video" ? "Video call" : "Voice call";
+  if (status === "missed") return `Missed ${kind.toLowerCase()}`;
+  if (status === "declined") return `Declined ${kind.toLowerCase()}`;
+  if (typeof durationSec === "number" && durationSec > 0) {
+    return `${kind} · ${formatAudioClock(durationSec)}`;
+  }
+  return kind;
+};
+
+/**
+ * Write a single call-history message into the chat thread.
+ * Uses callId as the message id so both peers can safely attempt the write.
+ */
+export const postCallHistoryMessage = async ({
+  chatId,
+  callId,
+  senderId,
+  type,
+  status,
+  durationSec,
+}) => {
+  if (!chatId || !callId || !senderId || !type || !status) return false;
+
+  const messageRef = doc(db, "chats", chatId, "messages", callId);
+  const existing = await getDoc(messageRef);
+  if (existing.exists()) return false;
+
+  const text = formatCallHistoryText({ type, status, durationSec });
+  /** @type {Record<string, unknown>} */
+  const callMeta = { type, status, callId };
+  if (typeof durationSec === "number" && durationSec >= 0) {
+    callMeta.durationSec = durationSec;
+  }
+
+  try {
+    await setDoc(messageRef, {
+      id: callId,
+      senderId,
+      text,
+      call: callMeta,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    // Another peer may have won the create race
+    if (error?.code === "already-exists" || error?.code === "permission-denied") {
+      return false;
+    }
+    throw error;
+  }
+
+  await syncSidebarPreview({
+    chatId,
+    currentUserId: senderId,
+    preview: text,
+  });
+
+  return true;
 };
