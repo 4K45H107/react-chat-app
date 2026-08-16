@@ -52,7 +52,7 @@ Deeper walkthroughs: [Documentation/](./Documentation/README.md).
 ## Demo notes
 
 - Best shown with **two accounts** (two browsers or normal + incognito).
-- Calls are **1:1 only** — enough for a portfolio demo, not a production dialer (no FCM ringtone, free TURN can be flaky on some networks).
+- Calls are **1:1 only** — enough for a portfolio demo, not a production dialer (ringtone/busy/cleanup are client-side; free TURN can still be flaky on some networks).
 - After pulling rules changes, deploy them or local and production will disagree:
 
 ```bash

@@ -1,14 +1,17 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { syncSidebarPreview } from "./chatService";
@@ -16,7 +19,7 @@ import { formatAudioClock } from "./audioRecord";
 
 /**
  * @typedef {"voice"|"video"} CallMediaType
- * @typedef {"ringing"|"active"|"ended"|"declined"|"missed"} CallStatus
+ * @typedef {"ringing"|"active"|"ended"|"declined"|"missed"|"busy"} CallStatus
  */
 
 /**
@@ -76,12 +79,45 @@ export const updateCallStatus = async (
   if (
     status === "ended" ||
     status === "declined" ||
-    status === "missed"
+    status === "missed" ||
+    status === "busy"
   ) {
     patch.endedAt = serverTimestamp();
     if (endedBy) patch.endedBy = endedBy;
   }
   await updateDoc(doc(db, "calls", callId), patch);
+};
+
+/** Mark a ringing call as busy (callee already on another call). */
+export const markCallBusy = async (callId, endedBy) => {
+  if (!callId) return;
+  await updateCallStatus(callId, "busy", { endedBy });
+};
+
+/**
+ * Best-effort cleanup: delete ICE candidates then the call doc.
+ * Safe to call from both peers; races are ignored.
+ */
+export const cleanupCallDocs = async (callId) => {
+  if (!callId) return;
+  try {
+    const iceSnap = await getDocs(
+      collection(db, "calls", callId, "iceCandidates")
+    );
+    const docs = iceSnap.docs;
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 400).forEach((iceDoc) => batch.delete(iceDoc.ref));
+      await batch.commit();
+    }
+    await deleteDoc(doc(db, "calls", callId));
+  } catch (error) {
+    console.warn(
+      "[Call] cleanupCallDocs failed:",
+      error.code || error,
+      error.message || error
+    );
+  }
 };
 
 export const addIceCandidate = async (callId, fromUid, candidate) => {
@@ -158,6 +194,7 @@ export const formatCallHistoryText = ({ type, status, durationSec }) => {
   const kind = type === "video" ? "Video call" : "Voice call";
   if (status === "missed") return `Missed ${kind.toLowerCase()}`;
   if (status === "declined") return `Declined ${kind.toLowerCase()}`;
+  if (status === "busy") return `${kind} · busy`;
   if (typeof durationSec === "number" && durationSec > 0) {
     return `${kind} · ${formatAudioClock(durationSec)}`;
   }

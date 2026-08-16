@@ -112,7 +112,7 @@ service cloud.firestore {
               request.resource.data.call.keys().hasAll(['type', 'status', 'callId'])
               && request.resource.data.call.keys().hasOnly(['type', 'status', 'callId', 'durationSec'])
               && request.resource.data.call.type in ['voice', 'video']
-              && request.resource.data.call.status in ['ended', 'declined', 'missed']
+              && request.resource.data.call.status in ['ended', 'declined', 'missed', 'busy']
               && request.resource.data.call.callId is string
               && request.resource.data.call.callId == messageId
               && (
@@ -178,7 +178,7 @@ service cloud.firestore {
       );
       allow create: if isCallParticipantCreate();
       allow update: if isCallParticipant();
-      allow delete: if false;
+      allow delete: if isCallParticipant();
 
       match /iceCandidates/{candidateId} {
         function parentCall() {
@@ -195,7 +195,11 @@ service cloud.firestore {
             request.auth.uid == parentCall().callerId ||
             request.auth.uid == parentCall().calleeId
           );
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if signedIn() && (
+          request.auth.uid == parentCall().callerId ||
+          request.auth.uid == parentCall().calleeId
+        );
       }
     }
   }

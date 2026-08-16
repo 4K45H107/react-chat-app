@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { doc, getDoc } from "firebase/firestore";
@@ -7,14 +7,22 @@ import { useUserStore } from "../../lib/userStore";
 import { useCallStore } from "../../lib/callStore";
 import {
   addIceCandidate,
+  cleanupCallDocs,
   createCall,
   listenCall,
   listenIceCandidates,
   listenIncomingCalls,
+  markCallBusy,
   postCallHistoryMessage,
   setCallAnswer,
   updateCallStatus,
 } from "../../lib/callService";
+import {
+  playBusyTone,
+  startIncomingRingtone,
+  startOutgoingRingback,
+  stopCallSounds,
+} from "../../lib/callSounds";
 import {
   CALL_RING_TIMEOUT_MS,
   RTC_CONFIGURATION,
@@ -22,6 +30,12 @@ import {
 import "./CallOverlay.css";
 
 const CONNECT_FAIL_MS = 25_000;
+const TERMINAL_CALL_STATUSES = new Set([
+  "ended",
+  "declined",
+  "missed",
+  "busy",
+]);
 
 const stopStream = (stream) => {
   stream?.getTracks?.().forEach((track) => track.stop());
@@ -64,6 +78,7 @@ const CallOverlay = () => {
   const callIdRef = useRef(null);
   const myUidRef = useRef(null);
   const pendingLocalIceRef = useRef([]);
+  const busyMarkedRef = useRef(new Set());
 
   const clearListeners = () => {
     unsubsRef.current.forEach((unsub) => {
@@ -77,6 +92,7 @@ const CallOverlay = () => {
   };
 
   const cleanupMedia = useCallback(() => {
+    stopCallSounds();
     clearListeners();
     if (pcRef.current) {
       try {
@@ -136,6 +152,7 @@ const CallOverlay = () => {
     async (status = "ended") => {
       if (endingRef.current) return;
       endingRef.current = true;
+      stopCallSounds();
 
       const state = useCallStore.getState();
       const id = state.callId;
@@ -174,6 +191,7 @@ const CallOverlay = () => {
             error.message
           );
         }
+        await cleanupCallDocs(id);
       }
       resetCall();
       endingRef.current = false;
@@ -183,6 +201,20 @@ const CallOverlay = () => {
     [cleanupMedia, currentUser?.id, resetCall]
   );
 
+  // Ringtone / ringback while waiting
+  useEffect(() => {
+    if (phase === "ringing-in") {
+      startIncomingRingtone().catch(() => {});
+      return () => stopCallSounds();
+    }
+    if (phase === "ringing-out") {
+      startOutgoingRingback().catch(() => {});
+      return () => stopCallSounds();
+    }
+    stopCallSounds();
+    return undefined;
+  }, [phase]);
+
   // Incoming call listener
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -191,8 +223,22 @@ const CallOverlay = () => {
       onData: (call) => {
         const { phase: p, callId: activeId } = useCallStore.getState();
         if (!call) return;
-        if (p !== "idle") return;
         if (activeId === call.id) return;
+
+        if (p !== "idle") {
+          if (busyMarkedRef.current.has(call.id)) return;
+          busyMarkedRef.current.add(call.id);
+          markCallBusy(call.id, currentUser.id).catch((error) => {
+            console.warn(
+              "[Call] Failed to mark busy:",
+              error.code,
+              error.message
+            );
+            busyMarkedRef.current.delete(call.id);
+          });
+          return;
+        }
+
         setIncoming(call);
       },
       onError: (error) => {
@@ -361,45 +407,61 @@ const CallOverlay = () => {
   const listenCallDoc = (activeCallId) => {
     const unsubCall = listenCall(activeCallId, {
       onData: async (call) => {
-        if (!call) return;
-        if (
-          call.status === "ended" ||
-          call.status === "declined" ||
-          call.status === "missed"
-        ) {
-          logCall("remote status →", call.status);
-          if (!endingRef.current) {
-            endingRef.current = true;
-            const state = useCallStore.getState();
-            const me = myUidRef.current || useUserStore.getState().currentUser?.id;
-            const durationSec = activeSinceRef.current
-              ? Math.max(
-                  0,
-                  Math.round((Date.now() - activeSinceRef.current) / 1000)
-                )
-              : 0;
-            if (me && state.chatId && state.callType && state.callId) {
-              postCallHistoryMessage({
+        const tearDownLocal = async (status) => {
+          if (endingRef.current) return;
+          endingRef.current = true;
+          stopCallSounds();
+          const state = useCallStore.getState();
+          const me = myUidRef.current || useUserStore.getState().currentUser?.id;
+          const durationSec = activeSinceRef.current
+            ? Math.max(
+                0,
+                Math.round((Date.now() - activeSinceRef.current) / 1000)
+              )
+            : 0;
+          if (me && state.chatId && state.callType && state.callId && status) {
+            try {
+              await postCallHistoryMessage({
                 chatId: state.chatId,
                 callId: state.callId,
                 senderId: me,
                 type: state.callType,
-                status: call.status,
-                durationSec:
-                  call.status === "ended" ? durationSec : undefined,
-              }).catch((error) => {
-                console.warn(
-                  "[Call] Failed to post call history:",
-                  error.code,
-                  error.message
-                );
+                status,
+                durationSec: status === "ended" ? durationSec : undefined,
               });
+            } catch (error) {
+              console.warn(
+                "[Call] Failed to post call history:",
+                error.code,
+                error.message
+              );
             }
-            cleanupMedia();
-            resetCall();
-            endingRef.current = false;
-            activeSinceRef.current = null;
-            setElapsedSec(0);
+          }
+          cleanupMedia();
+          if (state.callId) {
+            await cleanupCallDocs(state.callId);
+          }
+          resetCall();
+          endingRef.current = false;
+          activeSinceRef.current = null;
+          setElapsedSec(0);
+        };
+
+        if (!call) {
+          logCall("call doc deleted");
+          await tearDownLocal(null);
+          return;
+        }
+
+        if (TERMINAL_CALL_STATUSES.has(call.status)) {
+          logCall("remote status →", call.status);
+          const wasBusy = call.status === "busy";
+          const remoteName =
+            useCallStore.getState().remoteUser?.username || "User";
+          await tearDownLocal(call.status);
+          if (wasBusy) {
+            playBusyTone().catch(() => {});
+            toast.info(`${remoteName} is busy`);
           }
           return;
         }
@@ -649,7 +711,7 @@ const CallOverlay = () => {
       aria-label={title}
     >
       <div className="callStage">
-        <audio ref={remoteAudioRef} autoPlay playsInline />
+        <audio ref={remoteAudioRef} autoPlay />
 
         {callType === "video" && remoteStream ? (
           <video
