@@ -139,6 +139,7 @@ const Chat = () => {
   };
 
   const endRef = useRef(null);
+  const composerInputRef = useRef(null);
   const centerRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
   const imageInputRef = useRef(null);
@@ -969,6 +970,10 @@ const Chat = () => {
       toast.error("Failed to send message. Please try again.");
     } finally {
       setIsSending(false);
+      // Disabled inputs drop focus; restore so Enter-to-send stays usable.
+      requestAnimationFrame(() => {
+        composerInputRef.current?.focus();
+      });
     }
   };
 
@@ -1519,19 +1524,16 @@ const Chat = () => {
               </button>
             </div>
             <input
+              ref={composerInputRef}
               className="composerInput"
               type="text"
               value={text || ""}
               placeholder={
-                isChatBlocked
-                  ? "Messaging unavailable"
-                  : isSending
-                    ? "Sending..."
-                    : "Type a message..."
+                isChatBlocked ? "Messaging unavailable" : "Type a message..."
               }
               onChange={(e) => handleTextChange(e.target.value)}
               onKeyDown={handleComposerKeyDown}
-              disabled={isChatBlocked || isSending}
+              disabled={isChatBlocked}
               aria-label="Message"
             />
             <div className="emoji">
