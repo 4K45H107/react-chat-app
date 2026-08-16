@@ -669,6 +669,13 @@
   }
 }
 
+/* Match list.css: chat list hides under 900px when a chat is open */
+@media (max-width: 900px) {
+  .chat .top .backButton {
+    display: block;
+  }
+}
+
 @media (max-width: 1024px) {
   .chat {
     flex: 1.5;
@@ -696,10 +703,6 @@
 
     .top {
       gap: 8px;
-
-      .backButton {
-        display: block;
-      }
 
       .user {
         gap: 12px;
