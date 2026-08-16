@@ -15,6 +15,7 @@ import { normalizeUser } from "../../lib/normalizeUser";
 import upload from "../../lib/upload";
 import {
   leaveGroupChat,
+  listenSharedPhotos,
   updateGroupAvatar,
   updateOwnChatFlags,
 } from "../../lib/chatService";
@@ -39,6 +40,9 @@ const Details = () => {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [muted, setMuted] = useState(false);
   const [archived, setArchived] = useState(false);
+  const [photosOpen, setPhotosOpen] = useState(true);
+  const [sharedPhotos, setSharedPhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -90,6 +94,33 @@ const Details = () => {
 
     return () => unSub();
   }, [isGroup, chatId]);
+
+  useEffect(() => {
+    if (!chatId) {
+      setSharedPhotos([]);
+      setPhotosLoading(false);
+      return;
+    }
+
+    setPhotosLoading(true);
+    const unSub = listenSharedPhotos(chatId, {
+      onData: (photos) => {
+        setSharedPhotos(photos);
+        setPhotosLoading(false);
+      },
+      onError: (error) => {
+        console.warn(
+          "[Details] Failed to load shared photos:",
+          error.code,
+          error.message
+        );
+        setSharedPhotos([]);
+        setPhotosLoading(false);
+      },
+    });
+
+    return () => unSub();
+  }, [chatId]);
 
   const handleToggleBlock = async () => {
     if (isGroup || !user?.id || !currentUser?.id || isUpdatingBlock) return;
@@ -335,27 +366,43 @@ const Details = () => {
         </div>
 
         <div className="option">
-          <div className="title">
-            <span>Privacy & help</span>
-            <img src="./arrowUp.png" alt="" aria-hidden="true" />
-          </div>
-        </div>
-
-        <div className="option">
-          <div className="title">
+          <button
+            type="button"
+            className="title titleButton"
+            onClick={() => setPhotosOpen((open) => !open)}
+            aria-expanded={photosOpen}
+          >
             <span>Shared photos</span>
-            <img src="./arrowDown.png" alt="" aria-hidden="true" />
-          </div>
-          <div className="photos">
-            <p className="emptyHint">No shared photos yet</p>
-          </div>
-        </div>
-
-        <div className="option">
-          <div className="title">
-            <span>Shared files</span>
-            <img src="./arrowUp.png" alt="" aria-hidden="true" />
-          </div>
+            <img
+              src={photosOpen ? "./arrowDown.png" : "./arrowUp.png"}
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+          {photosOpen && (
+            <div className="photos">
+              {photosLoading ? (
+                <p className="emptyHint">Loading photos…</p>
+              ) : sharedPhotos.length === 0 ? (
+                <p className="emptyHint">No shared photos yet</p>
+              ) : (
+                sharedPhotos.map((photo, index) => (
+                  <a
+                    key={photo.id}
+                    className="photoLink"
+                    href={photo.img}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      src={photo.img}
+                      alt={photo.text?.trim() || `Shared photo ${index + 1}`}
+                    />
+                  </a>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {isGroup ? (

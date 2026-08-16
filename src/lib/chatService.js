@@ -335,6 +335,29 @@ export const editMessage = async (chatId, message, text) => {
   });
 };
 
+export const SHARED_PHOTOS_LIMIT = 100;
+
+/** Live gallery of recent image messages for the details panel. */
+export const listenSharedPhotos = (chatId, { onData, onError }) => {
+  const messagesQuery = query(
+    collection(db, "chats", chatId, "messages"),
+    orderBy("createdAt", "desc"),
+    limit(SHARED_PHOTOS_LIMIT)
+  );
+
+  return onSnapshot(
+    messagesQuery,
+    (snap) => {
+      onData(
+        mapMessageDocs(snap.docs).filter(
+          (msg) => typeof msg.img === "string" && msg.img && !msg.deleted
+        )
+      );
+    },
+    onError
+  );
+};
+
 /** Listen to the newest page of messages (newest-first query, reversed in callback). */
 export const listenLatestMessages = (chatId, { onData, onError }) => {
   const messagesQuery = query(
