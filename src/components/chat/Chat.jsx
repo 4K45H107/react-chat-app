@@ -1,94 +1,36 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
-import "./chat.css";
-import EmojiPicker, { Theme } from "emoji-picker-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import "./chat.css";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
-import { formatMessageTime } from "../../lib/formatTime";
 import upload from "../../lib/upload";
-import {
-  extensionForAudioMime,
-  formatAudioClock,
-  pickAudioMimeType,
-} from "../../lib/audioRecord";
-import { captureVideoFrame, startCameraStream } from "../../lib/cameraCapture";
 import {
   deleteMessage,
   editMessage,
-  listenChatTyping,
-  listenLatestMessages,
-  loadOlderMessages,
-  markChatAsSeen,
-  migrateLegacyMessages,
   sendMessage,
-  setTypingStatus,
   syncSidebarPreview,
 } from "../../lib/chatService";
-import { isUserOnline, listenUserPresence } from "../../lib/presence";
-import { getStoredTheme } from "../../lib/theme";
 import { rateLimitToastMessage } from "../../lib/rateLimit";
 import { requestStartCall } from "../call/CallOverlay";
 import { useCallStore } from "../../lib/callStore";
-
-const TYPING_TTL_MS = 4000;
-const EMOJI_PICKER_WIDTH = 352;
-const EMOJI_PICKER_PAD = 8;
-const MAX_VOICE_SECONDS = 120;
-
-const getEmojiPickerPosition = (button) => {
-  if (!button) return null;
-
-  const rect = button.getBoundingClientRect();
-  const shellEl = button.closest(".container");
-  const shell = shellEl?.getBoundingClientRect() ?? {
-    left: EMOJI_PICKER_PAD,
-    right: window.innerWidth - EMOJI_PICKER_PAD,
-    top: EMOJI_PICKER_PAD,
-    bottom: window.innerHeight - EMOJI_PICKER_PAD,
-  };
-
-  const minLeft = shell.left + EMOJI_PICKER_PAD;
-  const maxLeft = shell.right - EMOJI_PICKER_WIDTH - EMOJI_PICKER_PAD;
-
-  // Prefer above the button. If that would spill past the app container
-  // right edge, open fully to the left of the button edge.
-  let left = rect.left;
-  if (left + EMOJI_PICKER_WIDTH > shell.right - EMOJI_PICKER_PAD) {
-    left = rect.right - EMOJI_PICKER_WIDTH;
-  }
-
-  left = Math.min(Math.max(minLeft, left), Math.max(minLeft, maxLeft));
-
-  return {
-    left,
-    bottom: Math.max(EMOJI_PICKER_PAD, window.innerHeight - rect.top + EMOJI_PICKER_PAD),
-  };
-};
+import CameraCaptureOverlay from "./CameraCaptureOverlay";
+import ChatComposer from "./ChatComposer";
+import ChatHeader from "./ChatHeader";
+import MessageList from "./MessageList";
+import ThreadSearchBar from "./ThreadSearchBar";
+import { useCameraCapture } from "./hooks/useCameraCapture";
+import { useChatThread } from "./hooks/useChatThread";
+import { useOwnTyping } from "./hooks/useOwnTyping";
+import { usePartnerStatus } from "./hooks/usePartnerStatus";
+import { useThreadSearch } from "./hooks/useThreadSearch";
+import { useVoiceRecording } from "./hooks/useVoiceRecording";
 
 const Chat = () => {
-  const [openEmoji, setOpenEmoji] = useState(false);
-  const [emojiPickerPos, setEmojiPickerPos] = useState(null);
-  const emojiButtonRef = useRef(null);
-  const emojiPickerRef = useRef(null);
   const [text, setText] = useState("");
-  const [latestMessages, setLatestMessages] = useState([]);
-  const [olderMessages, setOlderMessages] = useState([]);
   const [isSending, setIsSending] = useState(false);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState("");
-  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
-  const [threadSearch, setThreadSearch] = useState("");
-  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
-  const [partnerOnline, setPartnerOnline] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isCameraStarting, setIsCameraStarting] = useState(false);
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState(null);
+  const [emojiDismissKey, setEmojiDismissKey] = useState(0);
 
   const {
     chatId,
@@ -128,63 +70,99 @@ const Chat = () => {
     !isChatBlocked &&
     callPhase === "idle";
 
-  const handleStartCall = (type) => {
-    if (!canCall) {
-      if (isGroup) toast.info("Calls are available in 1:1 chats only.");
-      else if (isChatBlocked) toast.warn("Messaging is blocked with this user.");
-      else if (callPhase !== "idle") toast.warn("You're already in a call.");
-      return;
-    }
-    requestStartCall({ type, partner: user, activeChatId: chatId });
-  };
-
-  const endRef = useRef(null);
   const composerInputRef = useRef(null);
-  const centerRef = useRef(null);
-  const messageNodeRefs = useRef(new Map());
-  const imageInputRef = useRef(null);
-  const migratedRef = useRef(new Set());
-  const oldestDocRef = useRef(null);
-  const hasLoadedOlderRef = useRef(false);
-  const shouldStickToBottomRef = useRef(true);
-  const isLoadingOlderRef = useRef(false);
-  const typingTimeoutRef = useRef(null);
-  const isTypingRef = useRef(false);
-  const mediaRecorderRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const recordTimerRef = useRef(null);
-  const recordStartedAtRef = useRef(0);
-  const recordMimeRef = useRef("");
-  const shouldSendRecordingRef = useRef(false);
-  const cameraStreamRef = useRef(null);
-  const cameraSessionRef = useRef(0);
-  const videoRef = useRef(null);
-  const capturedBlobRef = useRef(null);
-  const capturedUrlRef = useRef(null);
+  const closeCameraRef = useRef(() => {});
+  const cancelRecordingRef = useRef(() => {});
+  const sendImageFileRef = useRef(async () => false);
 
-  const olderIds = new Set(olderMessages.map((message) => message.id));
-  const messages = [
-    ...olderMessages,
-    ...latestMessages.filter((message) => !olderIds.has(message.id)),
-  ];
+  const {
+    messages,
+    isLoadingOlder,
+    hasMore,
+    endRef,
+    centerRef,
+    messageNodeRefs,
+    shouldStickToBottomRef,
+    handleCenterScroll,
+  } = useChatThread({
+    chatId,
+    currentUserId: currentUser?.id,
+  });
 
-  const searchQuery = threadSearch.trim().toLowerCase();
-  const matchIds = useMemo(() => {
-    if (!searchQuery) return [];
-    return messages
-      .filter(
-        (message) =>
-          !message.deleted &&
-          message.id &&
-          (message.text ?? "").toLowerCase().includes(searchQuery)
-      )
-      .map((message) => message.id);
-  }, [messages, searchQuery]);
+  const { partnerTyping, partnerOnline } = usePartnerStatus({
+    chatId,
+    userId: user?.id,
+    currentUserId: currentUser?.id,
+    isGroup,
+  });
+
+  const { clearOwnTyping, onComposerTextChange } = useOwnTyping({
+    chatId,
+    currentUserId: currentUser?.id,
+    isChatBlocked,
+  });
+
+  const {
+    isRecording,
+    recordSeconds,
+    startRecording,
+    sendRecording,
+    cancelRecording,
+  } = useVoiceRecording({
+    chatId,
+    currentUserId: currentUser?.id,
+    canSend,
+    isChatBlocked,
+    isSending,
+    setIsSending,
+    shouldStickToBottomRef,
+    clearOwnTyping,
+    onBeforeStart: () => closeCameraRef.current(),
+  });
+  cancelRecordingRef.current = cancelRecording;
+
+  const {
+    isCameraOpen,
+    isCameraStarting,
+    capturedPhotoUrl,
+    videoRef,
+    openCamera,
+    closeCamera,
+    capturePhoto,
+    retakePhoto,
+    sendCapturedPhoto,
+  } = useCameraCapture({
+    chatId,
+    canSend,
+    isChatBlocked,
+    isSending,
+    clearOwnTyping,
+    onBeforeOpen: () => {
+      cancelRecordingRef.current();
+      setEmojiDismissKey((key) => key + 1);
+    },
+    sendImageFile: (file) => sendImageFileRef.current(file),
+  });
+  closeCameraRef.current = closeCamera;
+
+  const {
+    threadSearchOpen,
+    threadSearch,
+    setThreadSearch,
+    activeMatchIndex,
+    setActiveMatchIndex,
+    searchQuery,
+    matchIds,
+    toggleSearch,
+    goPrevMatch,
+    goNextMatch,
+  } = useThreadSearch(messages, chatId);
 
   useEffect(() => {
-    setActiveMatchIndex(0);
-  }, [searchQuery, chatId]);
+    setText("");
+    setEditingMessageId(null);
+    setEditText("");
+  }, [chatId]);
 
   useEffect(() => {
     if (!matchIds.length) return;
@@ -195,487 +173,20 @@ const Chat = () => {
     }
     const node = messageNodeRefs.current.get(matchIds[safeIndex]);
     node?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [activeMatchIndex, matchIds]);
+  }, [activeMatchIndex, matchIds, messageNodeRefs, setActiveMatchIndex]);
 
-  // Reset pagination / typing / search / edit state when switching conversations
-  useEffect(() => {
-    setLatestMessages([]);
-    setOlderMessages([]);
-    setHasMore(false);
-    setPartnerTyping(false);
-    setPartnerOnline(false);
-    setEditingMessageId(null);
-    setEditText("");
-    setThreadSearchOpen(false);
-    setThreadSearch("");
-    setActiveMatchIndex(0);
-    setIsRecording(false);
-    setRecordSeconds(0);
-    setIsCameraOpen(false);
-    setIsCameraStarting(false);
-    setCapturedPhotoUrl(null);
-    oldestDocRef.current = null;
-    hasLoadedOlderRef.current = false;
-    shouldStickToBottomRef.current = true;
-    isTypingRef.current = false;
-    messageNodeRefs.current.clear();
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-  }, [chatId]);
-
-  useEffect(() => {
-    if (!chatId || !currentUser?.id) return;
-    if (!isGroup && !user?.id) return;
-
-    let clearPartnerTimer = null;
-
-    const unsub = listenChatTyping(chatId, {
-      onData: (typing) => {
-        if (clearPartnerTimer) clearTimeout(clearPartnerTimer);
-
-        if (!typing?.userId || typing.userId === currentUser.id) {
-          setPartnerTyping(false);
-          return;
-        }
-
-        const age = Date.now() - (typing.updatedAt ?? 0);
-        const isPartner =
-          isGroup || typing.userId === user?.id;
-        const fresh = age < TYPING_TTL_MS && isPartner;
-        setPartnerTyping(fresh);
-
-        if (fresh) {
-          clearPartnerTimer = setTimeout(() => {
-            setPartnerTyping(false);
-          }, TYPING_TTL_MS - age);
-        }
-      },
-      onError: (error) => {
-        console.warn(
-          "[Chat] Typing listener failed:",
-          error.code,
-          error.message
-        );
-      },
-    });
-
-    return () => {
-      unsub();
-      if (clearPartnerTimer) clearTimeout(clearPartnerTimer);
-    };
-  }, [chatId, user?.id, currentUser.id, isGroup]);
-
-  // Clear own typing flag on unmount / leave chat
-  useEffect(() => {
-    return () => {
-      if (!chatId || !currentUser?.id || !isTypingRef.current) return;
-      setTypingStatus(chatId, currentUser.id, false).catch(() => {});
-    };
-  }, [chatId, currentUser?.id]);
-
-  useEffect(() => {
-    if (isGroup || !user?.id) {
-      setPartnerOnline(false);
+  const handleStartCall = (type) => {
+    if (!canCall) {
+      if (isGroup) toast.info("Calls are available in 1:1 chats only.");
+      else if (isChatBlocked) toast.warn("Messaging is blocked with this user.");
+      else if (callPhase !== "idle") toast.warn("You're already in a call.");
       return;
     }
-
-    let refreshTimer = null;
-    const unsub = listenUserPresence(user.id, {
-      onData: (lastActive) => {
-        setPartnerOnline(isUserOnline(lastActive));
-        if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => {
-          setPartnerOnline(isUserOnline(lastActive));
-        }, 60_000);
-      },
-      onError: (error) => {
-        console.warn(
-          "[Chat] Presence listener failed:",
-          error.code,
-          error.message
-        );
-      },
-    });
-
-    return () => {
-      unsub();
-      if (refreshTimer) clearTimeout(refreshTimer);
-    };
-  }, [user?.id, isGroup]);
-
-  const clearOwnTyping = async () => {
-    if (!chatId || !currentUser?.id || !isTypingRef.current) return;
-    isTypingRef.current = false;
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    try {
-      await setTypingStatus(chatId, currentUser.id, false);
-    } catch (error) {
-      console.warn("[Chat] Failed to clear typing:", error.code, error.message);
-    }
+    requestStartCall({ type, partner: user, activeChatId: chatId });
   };
 
-  const stopMediaTracks = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-  };
-
-  const stopCameraTracks = () => {
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const revokeCapturedPhoto = () => {
-    if (capturedUrlRef.current) {
-      URL.revokeObjectURL(capturedUrlRef.current);
-      capturedUrlRef.current = null;
-    }
-    capturedBlobRef.current = null;
-    setCapturedPhotoUrl(null);
-  };
-
-  const closeCamera = () => {
-    cameraSessionRef.current += 1;
-    stopCameraTracks();
-    revokeCapturedPhoto();
-    setIsCameraOpen(false);
-    setIsCameraStarting(false);
-  };
-
-  const clearRecordTimer = () => {
-    if (recordTimerRef.current) {
-      clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-  };
-
-  const cancelRecording = () => {
-    shouldSendRecordingRef.current = false;
-    clearRecordTimer();
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop();
-      } catch {
-        /* ignore */
-      }
-    }
-    mediaRecorderRef.current = null;
-    audioChunksRef.current = [];
-    stopMediaTracks();
-    setIsRecording(false);
-    setRecordSeconds(0);
-  };
-
-  useEffect(() => {
-    return () => {
-      cancelRecording();
-      closeCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount cleanup only
-  }, []);
-
-  useEffect(() => {
-    if (!chatId) return;
-    cancelRecording();
-    closeCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on chat switch
-  }, [chatId]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const stream = cameraStreamRef.current;
-    if (!isCameraOpen || capturedPhotoUrl || !video || !stream) return;
-
-    video.srcObject = stream;
-    const playAttempt = video.play();
-    if (playAttempt?.catch) playAttempt.catch(() => {});
-  }, [isCameraOpen, capturedPhotoUrl, isCameraStarting]);
-
-  useEffect(() => {
-    if (!isCameraOpen) return undefined;
-
-    const onKeyDown = (event) => {
-      if (event.key === "Escape" && !isSending) closeCamera();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isCameraOpen, isSending]);
-
-  const handleStartRecording = async () => {
-    if (
-      isChatBlocked ||
-      isSending ||
-      isRecording ||
-      !canSend ||
-      typeof MediaRecorder === "undefined"
-    ) {
-      if (typeof MediaRecorder === "undefined") {
-        toast.warn("Voice messages are not supported in this browser.");
-      }
-      return;
-    }
-
-    closeCamera();
-
-    const mimeType = pickAudioMimeType();
-    if (!mimeType) {
-      toast.warn("Voice recording is not supported in this browser.");
-      return;
-    }
-
-    try {
-      await clearOwnTyping();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      audioChunksRef.current = [];
-      recordMimeRef.current = mimeType;
-      shouldSendRecordingRef.current = false;
-
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data?.size) audioChunksRef.current.push(event.data);
-      };
-
-      recorder.onstop = async () => {
-        clearRecordTimer();
-        stopMediaTracks();
-        const chunks = audioChunksRef.current;
-        audioChunksRef.current = [];
-        mediaRecorderRef.current = null;
-        setIsRecording(false);
-
-        const shouldSend = shouldSendRecordingRef.current;
-        shouldSendRecordingRef.current = false;
-        const durationSec = Math.max(
-          1,
-          Math.round((Date.now() - recordStartedAtRef.current) / 1000)
-        );
-        setRecordSeconds(0);
-
-        if (!shouldSend || !chunks.length) return;
-
-        const blob = new Blob(chunks, { type: recordMimeRef.current || "audio/webm" });
-        if (blob.size < 200) {
-          toast.warn("Recording was too short. Try again.");
-          return;
-        }
-
-        setIsSending(true);
-        shouldStickToBottomRef.current = true;
-        try {
-          const ext = extensionForAudioMime(blob.type);
-          const file = new File([blob], `voice.${ext}`, {
-            type: blob.type || "audio/webm",
-          });
-          let audioUrl;
-          try {
-            audioUrl = await upload(file, {
-              uid: currentUser.id,
-              folder: "audio",
-              fileName: `voice.${ext}`,
-            });
-          } catch (uploadError) {
-            const limited = rateLimitToastMessage(uploadError);
-            if (limited) {
-              toast.warn(limited);
-              return;
-            }
-            console.error(
-              "[Chat] Voice upload failed:",
-              uploadError.code || uploadError,
-              uploadError.message || uploadError
-            );
-            if (
-              String(uploadError.code || uploadError).includes("permission") ||
-              String(uploadError).includes("permission")
-            ) {
-              toast.error(
-                "Voice upload blocked. Deploy Storage rules (audio path)."
-              );
-            } else {
-              toast.error("Failed to upload voice message. Please try again.");
-            }
-            return;
-          }
-
-          if (!audioUrl) {
-            toast.error("Failed to upload voice message. Please try again.");
-            return;
-          }
-
-          try {
-            await sendMessage({
-              chatId,
-              senderId: currentUser.id,
-              text: "",
-              audio: audioUrl,
-              audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
-            });
-          } catch (sendError) {
-            const limited = rateLimitToastMessage(sendError);
-            if (limited) {
-              toast.warn(limited);
-              return;
-            }
-            console.error(
-              "[Chat] Voice message write failed:",
-              sendError.code || sendError,
-              sendError.message || sendError
-            );
-            if (sendError.code === "permission-denied") {
-              toast.error(
-                "Voice message blocked. Deploy updated Firestore rules."
-              );
-            } else {
-              toast.error("Failed to send voice message. Please try again.");
-            }
-            return;
-          }
-
-          await syncSidebarPreview({
-            chatId,
-            currentUserId: currentUser.id,
-            preview: "Voice message",
-          });
-        } catch (error) {
-          console.error(
-            "[Chat] Failed to send voice message:",
-            error.code || error,
-            error.message || error
-          );
-          toast.error("Failed to send voice message. Please try again.");
-        } finally {
-          setIsSending(false);
-        }
-      };
-
-      recorder.start(250);
-      recordStartedAtRef.current = Date.now();
-      setRecordSeconds(0);
-      setIsRecording(true);
-      clearRecordTimer();
-      recordTimerRef.current = setInterval(() => {
-        const elapsed = Math.floor(
-          (Date.now() - recordStartedAtRef.current) / 1000
-        );
-        setRecordSeconds(elapsed);
-        if (elapsed >= MAX_VOICE_SECONDS) {
-          shouldSendRecordingRef.current = true;
-          if (mediaRecorderRef.current?.state !== "inactive") {
-            mediaRecorderRef.current.stop();
-          }
-        }
-      }, 250);
-    } catch (error) {
-      console.error(
-        "[Chat] Microphone permission / start failed:",
-        error.name,
-        error.message
-      );
-      stopMediaTracks();
-      setIsRecording(false);
-      if (error?.name === "NotAllowedError") {
-        toast.error("Microphone permission is required for voice messages.");
-      } else {
-        toast.error("Could not start recording. Please try again.");
-      }
-    }
-  };
-
-  const handleSendRecording = () => {
-    if (!isRecording || !mediaRecorderRef.current) return;
-    shouldSendRecordingRef.current = true;
-    clearRecordTimer();
-    try {
-      if (mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-    } catch (error) {
-      console.warn("[Chat] Failed to stop recorder:", error);
-      cancelRecording();
-    }
-  };
-
-  const handleOpenCamera = async () => {
-    if (isChatBlocked || isSending || isCameraOpen || !canSend) return;
-
-    if (isRecording) cancelRecording();
-    setOpenEmoji(false);
-    setEmojiPickerPos(null);
-    await clearOwnTyping();
-
-    setIsCameraOpen(true);
-    setIsCameraStarting(true);
-    revokeCapturedPhoto();
-    const session = ++cameraSessionRef.current;
-
-    try {
-      const stream = await startCameraStream();
-      if (cameraSessionRef.current !== session) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      cameraStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        const playAttempt = videoRef.current.play();
-        if (playAttempt?.catch) playAttempt.catch(() => {});
-      }
-      setIsCameraStarting(false);
-    } catch (error) {
-      if (cameraSessionRef.current !== session) return;
-      console.error(
-        "[Chat] Camera permission / start failed:",
-        error.name,
-        error.message
-      );
-      closeCamera();
-      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") {
-        toast.error("Camera permission is required to take a photo.");
-      } else if (error?.name === "NotFoundError") {
-        toast.error("No camera was found on this device.");
-      } else if (error?.name === "NotSupportedError") {
-        toast.warn("Camera is not supported in this browser.");
-      } else {
-        toast.error("Could not open the camera. Please try again.");
-      }
-    }
-  };
-
-  const handleCapturePhoto = async () => {
-    const video = videoRef.current;
-    if (!video || isSending || isCameraStarting) return;
-
-    try {
-      const blob = await captureVideoFrame(video);
-      revokeCapturedPhoto();
-      capturedBlobRef.current = blob;
-      const url = URL.createObjectURL(blob);
-      capturedUrlRef.current = url;
-      setCapturedPhotoUrl(url);
-    } catch (error) {
-      console.error("[Chat] Failed to capture photo:", error.message || error);
-      toast.error("Could not capture photo. Please try again.");
-    }
-  };
-
-  const handleRetakePhoto = () => {
-    if (isSending) return;
-    revokeCapturedPhoto();
+  const handleTextChange = (value) => {
+    onComposerTextChange(value, setText);
   };
 
   const sendImageFile = async (file) => {
@@ -727,215 +238,7 @@ const Chat = () => {
       setIsSending(false);
     }
   };
-
-  const handleSendCapturedPhoto = async () => {
-    const blob = capturedBlobRef.current;
-    if (!blob || isSending) return;
-
-    const file = new File([blob], `photo-${Date.now()}.jpg`, {
-      type: blob.type || "image/jpeg",
-    });
-    const sent = await sendImageFile(file);
-    if (sent) closeCamera();
-  };
-
-  const handleTextChange = (value) => {
-    setText(value);
-    if (!chatId || !currentUser?.id || isChatBlocked) return;
-
-    if (value.trim()) {
-      if (!isTypingRef.current) {
-        isTypingRef.current = true;
-        setTypingStatus(chatId, currentUser.id, true).catch((error) => {
-          console.warn(
-            "[Chat] Failed to set typing:",
-            error.code,
-            error.message
-          );
-        });
-      }
-
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        clearOwnTyping();
-      }, TYPING_TTL_MS);
-    } else {
-      clearOwnTyping();
-    }
-  };
-
-  useEffect(() => {
-    if (!shouldStickToBottomRef.current || isLoadingOlder) return;
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoadingOlder]);
-
-  useEffect(() => {
-    if (!chatId || migratedRef.current.has(chatId)) return;
-
-    migrateLegacyMessages(chatId)
-      .catch((error) => {
-        console.warn(
-          "[Chat] Legacy message migration skipped:",
-          error.code,
-          error.message
-        );
-      })
-      .finally(() => {
-        migratedRef.current.add(chatId);
-      });
-  }, [chatId]);
-
-  useEffect(() => {
-    const unsub = listenLatestMessages(chatId, {
-      onData: ({ messages: newestPage, oldestDoc, hasMore: pageHasMore }) => {
-        setLatestMessages(newestPage);
-
-        if (!hasLoadedOlderRef.current) {
-          oldestDocRef.current = oldestDoc;
-          setHasMore(pageHasMore);
-        }
-      },
-      onError: (error) => {
-        console.error(
-          "[Chat] Failed to listen to chat messages:",
-          error.code,
-          error.message,
-          error
-        );
-      },
-    });
-
-    return () => unsub();
-  }, [chatId]);
-
-  const handleLoadOlder = async () => {
-    if (
-      !chatId ||
-      !hasMore ||
-      !oldestDocRef.current ||
-      isLoadingOlderRef.current
-    ) {
-      return;
-    }
-
-    isLoadingOlderRef.current = true;
-    hasLoadedOlderRef.current = true;
-    setIsLoadingOlder(true);
-    shouldStickToBottomRef.current = false;
-
-    const centerEl = centerRef.current;
-    const previousHeight = centerEl?.scrollHeight ?? 0;
-    const previousTop = centerEl?.scrollTop ?? 0;
-
-    try {
-      const result = await loadOlderMessages(chatId, oldestDocRef.current);
-
-      if (result.messages.length) {
-        setOlderMessages((prev) => [...result.messages, ...prev]);
-        oldestDocRef.current = result.oldestDoc;
-      }
-
-      setHasMore(result.hasMore);
-
-      requestAnimationFrame(() => {
-        if (!centerEl) return;
-        centerEl.scrollTop =
-          centerEl.scrollHeight - previousHeight + previousTop;
-      });
-    } catch (error) {
-      const limited = rateLimitToastMessage(error);
-      if (limited) {
-        toast.warn(limited);
-        return;
-      }
-      console.error(
-        "[Chat] Failed to load older messages:",
-        error.code,
-        error.message,
-        error
-      );
-      toast.error("Failed to load older messages.");
-    } finally {
-      isLoadingOlderRef.current = false;
-      setIsLoadingOlder(false);
-    }
-  };
-
-  const handleCenterScroll = () => {
-    const centerEl = centerRef.current;
-    if (!centerEl) return;
-
-    const distanceFromBottom =
-      centerEl.scrollHeight - centerEl.scrollTop - centerEl.clientHeight;
-    shouldStickToBottomRef.current = distanceFromBottom < 80;
-
-    if (centerEl.scrollTop < 80) {
-      handleLoadOlder();
-    }
-  };
-
-  useEffect(() => {
-    if (!chatId || !currentUser?.id) return;
-
-    markChatAsSeen(currentUser.id, chatId).catch((error) => {
-      console.warn(
-        "[Chat] Failed to mark chat as seen:",
-        error.code,
-        error.message
-      );
-    });
-  }, [chatId, currentUser?.id]);
-
-  useEffect(() => {
-    if (!openEmoji) return;
-
-    const placePicker = () => {
-      const next = getEmojiPickerPosition(emojiButtonRef.current);
-      if (next) setEmojiPickerPos(next);
-    };
-
-    placePicker();
-    document.body.classList.add("emoji-picker-open");
-    window.addEventListener("resize", placePicker);
-    window.addEventListener("scroll", placePicker, true);
-
-    const handleClickOutside = (event) => {
-      if (emojiButtonRef.current?.contains(event.target)) return;
-      if (emojiPickerRef.current?.contains(event.target)) return;
-      setOpenEmoji(false);
-      setEmojiPickerPos(null);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.body.classList.remove("emoji-picker-open");
-      window.removeEventListener("resize", placePicker);
-      window.removeEventListener("scroll", placePicker, true);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [openEmoji]);
-
-  const handleToggleEmojiPicker = () => {
-    if (isChatBlocked || isSending) return;
-
-    setOpenEmoji((wasOpen) => {
-      if (wasOpen) {
-        setEmojiPickerPos(null);
-        return false;
-      }
-
-      const next = getEmojiPickerPosition(emojiButtonRef.current);
-      setEmojiPickerPos(next);
-      return Boolean(next);
-    });
-  };
-
-  const handleEmoji = (e) => {
-    let newText = text + e.emoji;
-    setText(newText);
-    setOpenEmoji(false);
-    setEmojiPickerPos(null);
-  };
+  sendImageFileRef.current = sendImageFile;
 
   const handleSend = async () => {
     if (text === "" || !canSend || isChatBlocked || isSending) return;
@@ -970,7 +273,6 @@ const Chat = () => {
       toast.error("Failed to send message. Please try again.");
     } finally {
       setIsSending(false);
-      // Disabled inputs drop focus; restore so Enter-to-send stays usable.
       requestAnimationFrame(() => {
         composerInputRef.current?.focus();
       });
@@ -1064,529 +366,89 @@ const Chat = () => {
   return (
     <div className="chat">
       {isCameraOpen && (
-        <div
-          className="cameraOverlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Take a photo"
-        >
-          <div className="cameraStage">
-            {capturedPhotoUrl ? (
-              <img src={capturedPhotoUrl} alt="Captured photo preview" />
-            ) : isCameraStarting ? (
-              <p className="cameraStatus">Starting camera…</p>
-            ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                aria-label="Camera preview"
-              />
-            )}
-          </div>
-          <div className="cameraActions">
-            <button
-              type="button"
-              className="cameraCancel"
-              onClick={closeCamera}
-              disabled={isSending}
-            >
-              Cancel
-            </button>
-            {capturedPhotoUrl ? (
-              <>
-                <button
-                  type="button"
-                  className="cameraCancel"
-                  onClick={handleRetakePhoto}
-                  disabled={isSending}
-                >
-                  Retake
-                </button>
-                <button
-                  type="button"
-                  className="cameraSend"
-                  onClick={handleSendCapturedPhoto}
-                  disabled={isSending}
-                >
-                  {isSending ? "Sending..." : "Send"}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="cameraSend"
-                onClick={handleCapturePhoto}
-                disabled={isSending || isCameraStarting}
-              >
-                Capture
-              </button>
-            )}
-          </div>
-        </div>
+        <CameraCaptureOverlay
+          capturedPhotoUrl={capturedPhotoUrl}
+          isCameraStarting={isCameraStarting}
+          isSending={isSending}
+          videoRef={videoRef}
+          onClose={closeCamera}
+          onRetake={retakePhoto}
+          onSend={sendCapturedPhoto}
+          onCapture={capturePhoto}
+        />
       )}
-      {/* ------ TOP ------ */}
-      <div className="top">
-        <button
-          type="button"
-          className="backButton"
-          onClick={closeChat}
-          aria-label="Back to chat list"
-        >
-          ←
-        </button>
-        <div className="user">
-          {isGroup ? (
-            groupAvatar ? (
-              <img
-                src={groupAvatar}
-                alt={groupName || "Group"}
-              />
-            ) : (
-              <div className="groupAvatarHeader" aria-hidden="true">
-                {(groupName || "G").slice(0, 1).toUpperCase()}
-              </div>
-            )
-          ) : (
-            <img
-              src={user?.avatar || "./avatar.png"}
-              alt={user?.username ?? "Chat partner"}
-            />
-          )}
-          <div className="texts">
-            <span>
-              {isGroup ? groupName || "Group" : user?.username ?? "Unknown user"}
-            </span>
-            <p className={partnerTyping ? "typingStatus" : undefined}>
-              {partnerTyping
-                ? isGroup
-                  ? "Someone is typing…"
-                  : "typing…"
-                : isGroup
-                  ? `${participantIds?.length || members?.length || 0} members`
-                  : partnerOnline
-                    ? "Online"
-                    : (user?.email ?? "Offline")}
-            </p>
-          </div>
-        </div>
-        <div className="icons">
-          <button
-            type="button"
-            className="iconButton"
-            onClick={() =>
-              setThreadSearchOpen((open) => {
-                if (open) {
-                  setThreadSearch("");
-                  setActiveMatchIndex(0);
-                }
-                return !open;
-              })
-            }
-            aria-label={threadSearchOpen ? "Close message search" : "Search in chat"}
-            aria-pressed={threadSearchOpen}
-          >
-            <svg
-              className="chromeIcon"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-            >
-              <circle
-                cx="11"
-                cy="11"
-                r="6.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <line
-                x1="16"
-                y1="16"
-                x2="20.5"
-                y2="20.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="iconButton"
-            onClick={() => handleStartCall("voice")}
-            disabled={!canCall}
-            aria-label="Start voice call"
-            title={isGroup ? "Voice calls are 1:1 only" : "Voice call"}
-          >
-            <img src="./phone.png" alt="" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="iconButton"
-            onClick={() => handleStartCall("video")}
-            disabled={!canCall}
-            aria-label="Start video call"
-            title={isGroup ? "Video calls are 1:1 only" : "Video call"}
-          >
-            <img src="./video.png" alt="" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="iconButton"
-            onClick={toggleDetails}
-            aria-label="Toggle chat details"
-          >
-            <img src="./info.png" alt="" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+
+      <ChatHeader
+        isGroup={isGroup}
+        groupName={groupName}
+        groupAvatar={groupAvatar}
+        user={user}
+        partnerTyping={partnerTyping}
+        partnerOnline={partnerOnline}
+        participantCount={participantIds?.length || members?.length || 0}
+        threadSearchOpen={threadSearchOpen}
+        canCall={canCall}
+        onBack={closeChat}
+        onToggleSearch={toggleSearch}
+        onStartVoiceCall={() => handleStartCall("voice")}
+        onStartVideoCall={() => handleStartCall("video")}
+        onToggleDetails={toggleDetails}
+      />
 
       {threadSearchOpen && (
-        <div className="threadSearch" role="search">
-          <input
-            type="text"
-            value={threadSearch}
-            onChange={(e) => setThreadSearch(e.target.value)}
-            placeholder="Search in this chat…"
-            aria-label="Search messages in this chat"
-            autoFocus
-          />
-          <span className="matchCount" aria-live="polite">
-            {searchQuery
-              ? matchIds.length
-                ? `${activeMatchIndex + 1}/${matchIds.length}`
-                : "0 matches"
-              : "—"}
-          </span>
-          <button
-            type="button"
-            className="searchNav"
-            disabled={!matchIds.length}
-            onClick={() =>
-              setActiveMatchIndex((i) =>
-                matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0
-              )
-            }
-            aria-label="Previous match"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="searchNav"
-            disabled={!matchIds.length}
-            onClick={() =>
-              setActiveMatchIndex((i) =>
-                matchIds.length ? (i + 1) % matchIds.length : 0
-              )
-            }
-            aria-label="Next match"
-          >
-            ↓
-          </button>
-        </div>
+        <ThreadSearchBar
+          threadSearch={threadSearch}
+          onThreadSearchChange={setThreadSearch}
+          searchQuery={searchQuery}
+          matchCount={matchIds.length}
+          activeMatchIndex={activeMatchIndex}
+          onPrev={goPrevMatch}
+          onNext={goNextMatch}
+        />
       )}
 
-      {/* ------ CENTER ------ */}
-      <div
-        className="center"
-        ref={centerRef}
+      <MessageList
+        messages={messages}
+        isLoadingOlder={isLoadingOlder}
+        hasMore={hasMore}
+        isChatBlocked={isChatBlocked}
+        isCurrentUserBlocked={isCurrentUserBlocked}
+        currentUserId={currentUser.id}
+        isGroup={isGroup}
+        memberNameById={memberNameById}
+        editingMessageId={editingMessageId}
+        editText={editText}
+        onEditTextChange={setEditText}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
+        onStartEdit={handleStartEdit}
+        onDelete={handleDeleteMessage}
+        matchIds={matchIds}
+        activeMatchIndex={activeMatchIndex}
+        messageNodeRefs={messageNodeRefs}
+        centerRef={centerRef}
+        endRef={endRef}
         onScroll={handleCenterScroll}
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions"
-        aria-label="Message thread"
-      >
-        {isLoadingOlder && (
-          <p className="loadOlderHint">Loading earlier messages…</p>
-        )}
-        {!hasMore && messages.length > 0 && (
-          <p className="loadOlderHint">Beginning of conversation</p>
-        )}
-        {isChatBlocked && (
-          <p className="blockedNotice">
-            {isCurrentUserBlocked
-              ? "You can't message this user — you've been blocked."
-              : "You blocked this user."}
-          </p>
-        )}
-        {!messages.length && !isChatBlocked && (
-          <p className="emptyMessages">
-            No messages yet. Say hello to start the conversation.
-          </p>
-        )}
-        {messages.map((message, index) => {
-          const isEditing = editingMessageId === message.id;
-          const isMatch =
-            Boolean(message.id) && matchIds.includes(message.id);
-          const isActiveMatch =
-            isMatch && matchIds[activeMatchIndex] === message.id;
-          const isCallLog = Boolean(message.call) && !message.deleted;
+      />
 
-          return (
-          <div
-            className={`message ${
-              isCallLog
-                ? "callLog"
-                : message.senderId === currentUser.id
-                  ? "own"
-                  : ""
-            }${message.deleted ? " deleted" : ""}${
-              isMatch ? " searchMatch" : ""
-            }${isActiveMatch ? " searchMatchActive" : ""}`}
-            key={message.id ?? `${message.senderId}-${index}`}
-            ref={(node) => {
-              if (!message.id) return;
-              if (node) messageNodeRefs.current.set(message.id, node);
-              else messageNodeRefs.current.delete(message.id);
-            }}
-          >
-            <div className="texts">
-              {isGroup &&
-                !message.deleted &&
-                !isCallLog &&
-                message.senderId !== currentUser.id && (
-                  <span className="senderName">
-                    {memberNameById.get(message.senderId) || "Member"}
-                  </span>
-                )}
-              {message.deleted ? (
-                <p className="deletedText">Message deleted</p>
-              ) : isEditing ? (
-                <div className="editComposer">
-                  <input
-                    type="text"
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveEdit(message);
-                      }
-                      if (e.key === "Escape") {
-                        e.preventDefault();
-                        handleCancelEdit();
-                      }
-                    }}
-                    maxLength={2000}
-                    aria-label="Edit message"
-                    autoFocus
-                  />
-                  <div className="editActions">
-                    <button type="button" onClick={handleCancelEdit}>
-                      Cancel
-                    </button>
-                    <button type="button" onClick={() => handleSaveEdit(message)}>
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : isCallLog ? (
-                <p className="callLogText">
-                  <span className="callLogIcon" aria-hidden="true">
-                    {message.call?.type === "video" ? "▣" : "☎"}
-                  </span>
-                  {message.text || "Call"}
-                </p>
-              ) : (
-                <>
-                  {message.img ? (
-                    <a
-                      className="messageImageLink"
-                      href={message.img}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <img
-                        className="messageImage"
-                        src={message.img}
-                        alt={message.text || "Shared image"}
-                      />
-                    </a>
-                  ) : null}
-                  {message.audio ? (
-                    <div className="voiceMessage">
-                      <audio
-                        controls
-                        preload="metadata"
-                        src={message.audio}
-                        aria-label="Voice message"
-                      />
-                      {typeof message.audioDuration === "number" ? (
-                        <span className="voiceDuration">
-                          {formatAudioClock(message.audioDuration)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {message.text ? <p>{message.text}</p> : null}
-                </>
-              )}
-              <div className="messageMeta">
-                <span>
-                  {formatMessageTime(message.createdAt)}
-                  {message.edited && !message.deleted ? " · edited" : ""}
-                </span>
-                {message.senderId === currentUser.id &&
-                  !message.deleted &&
-                  !isEditing &&
-                  !isCallLog && (
-                    <>
-                      {message.text ? (
-                        <button
-                          type="button"
-                          className="editMessage"
-                          onClick={() => handleStartEdit(message)}
-                          aria-label="Edit message"
-                        >
-                          Edit
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="deleteMessage"
-                        onClick={() => handleDeleteMessage(message)}
-                        aria-label="Delete message"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-              </div>
-            </div>
-          </div>
-          );
-        })}
-        <div ref={endRef} />
-      </div>
-
-      <div className={`bottom ${isChatBlocked ? "disabled" : ""}`}>
-        {isRecording ? (
-          <div className="voiceRecorder" role="status" aria-live="polite">
-            <span className="recDot" aria-hidden="true" />
-            <span className="recLabel">
-              Recording {formatAudioClock(recordSeconds)}
-            </span>
-            <button
-              type="button"
-              className="recCancel"
-              onClick={cancelRecording}
-              disabled={isSending}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="recSend"
-              onClick={handleSendRecording}
-              disabled={isSending || recordSeconds < 1}
-            >
-              Send
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="icons">
-              <label
-                className={`attachImage${isChatBlocked || isSending ? " disabled" : ""}`}
-                aria-label="Send an image"
-              >
-                <img src="./img.png" alt="" aria-hidden="true" />
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  disabled={isChatBlocked || isSending}
-                  onChange={handleImageSelect}
-                />
-              </label>
-              <button
-                type="button"
-                className="cameraButton"
-                onClick={handleOpenCamera}
-                disabled={isChatBlocked || isSending || !canSend}
-                aria-label="Take a photo"
-              >
-                <img src="./camera.png" alt="" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="micButton"
-                onClick={handleStartRecording}
-                disabled={isChatBlocked || isSending || !canSend}
-                aria-label="Record voice message"
-              >
-                <img src="./mic.png" alt="" aria-hidden="true" />
-              </button>
-            </div>
-            <input
-              ref={composerInputRef}
-              className="composerInput"
-              type="text"
-              value={text || ""}
-              placeholder={
-                isChatBlocked ? "Messaging unavailable" : "Type a message..."
-              }
-              onChange={(e) => handleTextChange(e.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              disabled={isChatBlocked}
-              aria-label="Message"
-            />
-            <div className="emoji">
-              <button
-                ref={emojiButtonRef}
-                type="button"
-                className="emojiToggle"
-                aria-label="Open emoji picker"
-                aria-expanded={openEmoji}
-                disabled={isChatBlocked || isSending}
-                onClick={handleToggleEmojiPicker}
-              >
-                <span className="emojiGlyph" aria-hidden="true">
-                  😊
-                </span>
-              </button>
-              {openEmoji &&
-                emojiPickerPos &&
-                !isChatBlocked &&
-                createPortal(
-                  <div
-                    ref={emojiPickerRef}
-                    className="emojiPickerPortal"
-                    style={{
-                      left: emojiPickerPos.left,
-                      bottom: emojiPickerPos.bottom,
-                    }}
-                    role="dialog"
-                    aria-label="Emoji picker"
-                  >
-                    <EmojiPicker
-                      theme={
-                        getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
-                      }
-                      onEmojiClick={handleEmoji}
-                      autoFocusSearch={false}
-                      width={EMOJI_PICKER_WIDTH}
-                      height={420}
-                    />
-                  </div>,
-                  document.body
-                )}
-            </div>
-            <button
-              className="sendButton"
-              onClick={handleSend}
-              disabled={isChatBlocked || isSending}
-            >
-              {isSending ? "Sending..." : "Send"}
-            </button>
-          </>
-        )}
-      </div>
+      <ChatComposer
+        isChatBlocked={isChatBlocked}
+        isSending={isSending}
+        canSend={canSend}
+        isRecording={isRecording}
+        recordSeconds={recordSeconds}
+        text={text}
+        onTextChange={handleTextChange}
+        onKeyDown={handleComposerKeyDown}
+        onSend={handleSend}
+        onImageSelect={handleImageSelect}
+        onOpenCamera={openCamera}
+        onStartRecording={startRecording}
+        onCancelRecording={cancelRecording}
+        onSendRecording={sendRecording}
+        composerInputRef={composerInputRef}
+        emojiDismissKey={emojiDismissKey}
+      />
     </div>
   );
 };

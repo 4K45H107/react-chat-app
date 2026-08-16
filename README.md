@@ -43,6 +43,7 @@ React UI  →  Zustand stores  →  chatService / callService  →  Firebase
 - **Access control** is in security rules: only participants read/write a chat; Storage writes are scoped under the signed-in user.
 - **Calls** use Firestore for offer/answer/ICE; media stays peer-to-peer via WebRTC.
 - Domain logic sits in `src/lib/` (`chatService.js`, `callService.js`, presence, upload, rate limit) so the UI stays thinner than a pure “everything in components” app.
+- The chat UI is split under `src/components/chat/`: `Chat.jsx` orchestrates hooks (`useChatThread`, voice/camera/typing) and presentational pieces (header, message list, composer, camera overlay).
 
 Deeper walkthroughs: [Documentation/](./Documentation/README.md).
 

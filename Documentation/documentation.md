@@ -49,7 +49,15 @@ src/
       chatList/
         ChatList.jsx      # Real-time chat list + search + notifications
         addUser/AddUser.jsx   # Username search + create chat
-    chat/Chat.jsx         # Thread + pagination + typing/presence + delete
+    chat/                  # Thread UI (orchestrator + hooks + panels)
+      Chat.jsx             # Wires stores, hooks, send/edit/delete
+      ChatHeader.jsx       # Partner/group header + call/search actions
+      MessageList.jsx      # Scrollable thread + pagination hints
+      MessageBubble.jsx    # Single message (text/image/audio/call/edit)
+      ChatComposer.jsx     # Input, emoji, attach, mic, camera
+      CameraCaptureOverlay.jsx
+      hooks/               # Thread, typing, presence, voice, camera, search
+      chat.css
     details/Details.jsx   # Partner info panel (toggle)
     notification/Notification.jsx  # Toast host
 firebase.json             # Firestore/Storage rules deploy config
