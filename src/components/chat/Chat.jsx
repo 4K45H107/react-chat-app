@@ -28,6 +28,8 @@ import {
 import { isUserOnline, listenUserPresence } from "../../lib/presence";
 import { getStoredTheme } from "../../lib/theme";
 import { rateLimitToastMessage } from "../../lib/rateLimit";
+import { requestStartCall } from "../call/CallOverlay";
+import { useCallStore } from "../../lib/callStore";
 
 const TYPING_TTL_MS = 4000;
 const EMOJI_PICKER_WIDTH = 352;
@@ -118,6 +120,23 @@ const Chat = () => {
   }, [members, currentUser?.id, currentUser?.username]);
 
   const canSend = Boolean(chatId) && (isGroup || Boolean(user));
+  const callPhase = useCallStore((s) => s.phase);
+  const canCall =
+    Boolean(chatId) &&
+    !isGroup &&
+    Boolean(user?.id) &&
+    !isChatBlocked &&
+    callPhase === "idle";
+
+  const handleStartCall = (type) => {
+    if (!canCall) {
+      if (isGroup) toast.info("Calls are available in 1:1 chats only.");
+      else if (isChatBlocked) toast.warn("Messaging is blocked with this user.");
+      else if (callPhase !== "idle") toast.warn("You're already in a call.");
+      return;
+    }
+    requestStartCall({ type, partner: user, activeChatId: chatId });
+  };
 
   const endRef = useRef(null);
   const centerRef = useRef(null);
@@ -1188,8 +1207,26 @@ const Chat = () => {
               />
             </svg>
           </button>
-          <img src="./phone.png" alt="" aria-hidden="true" />
-          <img src="./video.png" alt="" aria-hidden="true" />
+          <button
+            type="button"
+            className="iconButton"
+            onClick={() => handleStartCall("voice")}
+            disabled={!canCall}
+            aria-label="Start voice call"
+            title={isGroup ? "Voice calls are 1:1 only" : "Voice call"}
+          >
+            <img src="./phone.png" alt="" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="iconButton"
+            onClick={() => handleStartCall("video")}
+            disabled={!canCall}
+            aria-label="Start video call"
+            title={isGroup ? "Video calls are 1:1 only" : "Video call"}
+          >
+            <img src="./video.png" alt="" aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="iconButton"

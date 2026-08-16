@@ -4,6 +4,7 @@ import Chat from "./components/chat/Chat";
 import Details from "./components/details/Details";
 import Login from "./components/login/Login";
 import Notification from "./components/notification/Notification";
+import CallOverlay from "./components/call/CallOverlay";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./lib/firebase";
@@ -69,6 +70,7 @@ const App = () => {
           <List />
           {chatId && <Chat />}
           {chatId && showDetails && <Details />}
+          <CallOverlay />
         </ErrorBoundary>
       )}
 

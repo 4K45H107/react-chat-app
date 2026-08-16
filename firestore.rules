@@ -133,5 +133,51 @@ service cloud.firestore {
         allow delete: if false;
       }
     }
+
+    // 1:1 WebRTC call signaling (offer/answer + ICE)
+    match /calls/{callId} {
+      function isCallParticipant() {
+        return signedIn() && (
+          request.auth.uid == resource.data.callerId ||
+          request.auth.uid == resource.data.calleeId
+        );
+      }
+
+      function isCallParticipantCreate() {
+        return signedIn()
+          && request.auth.uid == request.resource.data.callerId
+          && request.resource.data.callerId is string
+          && request.resource.data.calleeId is string
+          && request.resource.data.callerId != request.resource.data.calleeId
+          && request.resource.data.type in ['voice', 'video']
+          && request.resource.data.status == 'ringing';
+      }
+
+      allow read: if signedIn() && (
+        resource.data.callerId == request.auth.uid ||
+        resource.data.calleeId == request.auth.uid
+      );
+      allow create: if isCallParticipantCreate();
+      allow update: if isCallParticipant();
+      allow delete: if false;
+
+      match /iceCandidates/{candidateId} {
+        function parentCall() {
+          return get(/databases/$(database)/documents/calls/$(callId)).data;
+        }
+
+        allow read: if signedIn() && (
+          request.auth.uid == parentCall().callerId ||
+          request.auth.uid == parentCall().calleeId
+        );
+        allow create: if signedIn()
+          && request.resource.data.from == request.auth.uid
+          && (
+            request.auth.uid == parentCall().callerId ||
+            request.auth.uid == parentCall().calleeId
+          );
+        allow update, delete: if false;
+      }
+    }
   }
 }

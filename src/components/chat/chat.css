@@ -109,6 +109,11 @@
         cursor: pointer;
         color: var(--color-text);
 
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
         .chromeIcon {
           display: block;
         }

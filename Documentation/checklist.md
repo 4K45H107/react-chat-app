@@ -132,7 +132,7 @@ Do these only after Phases 1–4. No fixed dates.
 | [x] | P3 | Chat archive / mute |
 | [x] | P3 | Group chats |
 | [x] | P3 | Voice messages |
-| [ ] | P3 | Video / voice calls (replace phone/video placeholders) |
+| [x] | P3 | Video / voice calls (replace phone/video placeholders) | 1:1 WebRTC + Firestore signaling; STUN only |
 | [x] | P3 | Themes |
 | [x] | P3 | Rate limiting / App Check | Client rate limits (Spark-safe). App Check deferred. |
 | [ ] | P3 | CI (lint + tests on PR) |
