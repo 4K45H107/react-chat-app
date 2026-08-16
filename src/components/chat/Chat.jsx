@@ -26,6 +26,7 @@ import {
 } from "../../lib/chatService";
 import { isUserOnline, listenUserPresence } from "../../lib/presence";
 import { getStoredTheme } from "../../lib/theme";
+import { rateLimitToastMessage } from "../../lib/rateLimit";
 
 const TYPING_TTL_MS = 4000;
 const EMOJI_PICKER_WIDTH = 352;
@@ -405,6 +406,11 @@ const Chat = () => {
               fileName: `voice.${ext}`,
             });
           } catch (uploadError) {
+            const limited = rateLimitToastMessage(uploadError);
+            if (limited) {
+              toast.warn(limited);
+              return;
+            }
             console.error(
               "[Chat] Voice upload failed:",
               uploadError.code || uploadError,
@@ -437,6 +443,11 @@ const Chat = () => {
               audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
             });
           } catch (sendError) {
+            const limited = rateLimitToastMessage(sendError);
+            if (limited) {
+              toast.warn(limited);
+              return;
+            }
             console.error(
               "[Chat] Voice message write failed:",
               sendError.code || sendError,
@@ -620,6 +631,11 @@ const Chat = () => {
           centerEl.scrollHeight - previousHeight + previousTop;
       });
     } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return;
+      }
       console.error(
         "[Chat] Failed to load older messages:",
         error.code,
@@ -728,6 +744,11 @@ const Chat = () => {
       });
       setText("");
     } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return;
+      }
       console.error(
         "[Chat] Failed to send message:",
         error.code,
@@ -774,6 +795,11 @@ const Chat = () => {
       });
       setText("");
     } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return;
+      }
       console.error(
         "[Chat] Failed to send image:",
         error.code || error,
@@ -803,6 +829,11 @@ const Chat = () => {
       }
       await deleteMessage(chatId, message);
     } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return;
+      }
       console.error(
         "[Chat] Failed to delete message:",
         error.code,
@@ -842,6 +873,11 @@ const Chat = () => {
       await editMessage(chatId, message, nextText);
       handleCancelEdit();
     } catch (error) {
+      const limited = rateLimitToastMessage(error);
+      if (limited) {
+        toast.warn(limited);
+        return;
+      }
       console.error(
         "[Chat] Failed to edit message:",
         error.code,

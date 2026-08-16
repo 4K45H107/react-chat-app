@@ -5,6 +5,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
 import upload from "../../../lib/upload";
+import { rateLimitToastMessage } from "../../../lib/rateLimit";
 import "./EditProfile.css";
 
 const MIN_DISPLAY_NAME_LENGTH = 2;
@@ -113,7 +114,9 @@ const EditProfile = ({ onClose }) => {
         error.message,
         error
       );
-      toast.error("Failed to update profile. Please try again.");
+      const limited = rateLimitToastMessage(error);
+      if (limited) toast.warn(limited);
+      else toast.error("Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }

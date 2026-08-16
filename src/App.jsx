@@ -45,7 +45,7 @@ const App = () => {
     };
 
     tick();
-    const intervalId = setInterval(tick, 30_000);
+    const intervalId = setInterval(tick, 60_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") tick();

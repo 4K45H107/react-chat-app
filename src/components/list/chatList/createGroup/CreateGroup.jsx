@@ -8,6 +8,7 @@ import { db } from "../../../../lib/firebase";
 import { useUserStore } from "../../../../lib/userStore";
 import { normalizeUser } from "../../../../lib/normalizeUser";
 import { createGroupChat } from "../../../../lib/chatService";
+import { rateLimitToastMessage } from "../../../../lib/rateLimit";
 
 const USER_LIST_LIMIT = 100;
 const MAX_GROUP_NAME = 60;
@@ -124,11 +125,13 @@ const CreateGroup = ({ onClose }) => {
         error.code || error,
         error.message || error
       );
-      toast.error(
-        error?.message?.includes("Pick at least")
-          ? error.message
-          : "Failed to create group. Please try again."
-      );
+      const limited = rateLimitToastMessage(error);
+      if (limited) toast.warn(limited);
+      else if (error?.message?.includes("Pick at least")) {
+        toast.error(error.message);
+      } else {
+        toast.error("Failed to create group. Please try again.");
+      }
     } finally {
       isCreatingRef.current = false;
       setIsCreating(false);

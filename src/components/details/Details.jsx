@@ -18,6 +18,7 @@ import {
   updateGroupAvatar,
   updateOwnChatFlags,
 } from "../../lib/chatService";
+import { rateLimitToastMessage } from "../../lib/rateLimit";
 
 const Details = () => {
   const {
@@ -217,7 +218,9 @@ const Details = () => {
         error.code || error,
         error.message || error
       );
-      toast.error("Failed to update group photo. Please try again.");
+      const limited = rateLimitToastMessage(error);
+      if (limited) toast.warn(limited);
+      else toast.error("Failed to update group photo. Please try again.");
     } finally {
       setIsUploadingAvatar(false);
     }

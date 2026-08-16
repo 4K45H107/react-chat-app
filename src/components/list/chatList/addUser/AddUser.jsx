@@ -7,6 +7,7 @@ import { db } from "../../../../lib/firebase";
 import { useUserStore } from "../../../../lib/userStore";
 import { normalizeUser } from "../../../../lib/normalizeUser";
 import { createChat, hasExistingChatWith } from "../../../../lib/chatService";
+import { rateLimitToastMessage } from "../../../../lib/rateLimit";
 
 const USER_LIST_LIMIT = 100;
 
@@ -115,7 +116,9 @@ const AddUser = ({ onClose }) => {
         error.message,
         error
       );
-      toast.error("Failed to create chat. Please try again.");
+      const limited = rateLimitToastMessage(error);
+      if (limited) toast.warn(limited);
+      else toast.error("Failed to create chat. Please try again.");
     } finally {
       isAddingRef.current = false;
       setAddingUserId(null);

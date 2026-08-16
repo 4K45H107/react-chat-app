@@ -1,5 +1,6 @@
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { storage } from "./firebase";
+import { assertRateLimit } from "./rateLimit";
 
 /**
  * Upload a file to Firebase Storage.
@@ -10,8 +11,11 @@ import { storage } from "./firebase";
 const upload = async (file, { uid, folder = "images", fileName } = {}) => {
   if (!file) return null;
 
+  assertRateLimit(uid, "upload");
+
   const safeFolder = folder === "audio" ? "audio" : "images";
-  const rawName = fileName || file.name || (safeFolder === "audio" ? "voice.webm" : "image");
+  const rawName =
+    fileName || file.name || (safeFolder === "audio" ? "voice.webm" : "image");
   const safeName = String(rawName).replace(/[^\w.\-]+/g, "_");
   const path = uid
     ? `${safeFolder}/${uid}/${Date.now()}_${safeName}`
