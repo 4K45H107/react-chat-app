@@ -26,8 +26,8 @@ Supports 1:1 and group chats, media and voice messages, presence/typing indicato
 | UI | React 18, Vite 5, CSS |
 | State | Zustand |
 | Backend | Firebase Auth, Firestore (persistent local cache), Storage |
-| Calls | WebRTC (STUN + public TURN) |
-| Tooling | ESLint, Vitest, JSDoc |
+| Calls | WebRTC (STUN + Metered TURN relay) |
+| Tooling | ESLint, Vitest, Firebase Emulator Suite, size-limit, GitHub Actions |
 
 ---
 
@@ -39,51 +39,50 @@ React UI  →  Zustand stores  →  chatService / callService  →  Firebase
                          firestore.rules + storage.rules
 ```
 
-- Messages are stored in `chats/{id}/messages` with a live newest page and older-page pagination on scroll-up.
-- Access control lives in security rules: only participants can read/write a chat; Storage writes are scoped to the signed-in user.
-- Calls use Firestore for offer/answer/ICE; media stays peer-to-peer via WebRTC.
-- Domain logic is centralized in `src/lib/` (`chatService.js`, `callService.js`, presence, upload, rate limiting).
-- Chat UI under `src/components/chat/` is split into an orchestrator (`Chat.jsx`), feature hooks, and presentational panels (header, message list, composer, camera).
+- The sidebar is a live query over the chats you're a member of; each chat holds its last-message preview and a read marker per member. No user writes another user's documents.
+- Access control lives in security rules, covered by 36 emulator tests: members only, fields validated, server timestamps, blocking enforced.
+- Calls use Firestore for offer / answer / ICE; media goes peer to peer, or through a TURN relay on strict networks.
+- The login screen loads only React and Firebase Auth (84 KB gzip); the rest of the app loads after sign-in.
 
-See [Documentation/](./Documentation/README.md) for schemas, flows, and deeper notes.
+See [docs/](./docs/README.md) for the data model, security rules, calls, testing and decision records.
 
 ---
 
 ## Limitations
 
 - Voice/video calls are **1:1 only** (not group).
-- Signaling and call cleanup are client-side; connectivity depends on STUN/TURN availability on the network.
-- After changing rules in the repo, deploy them or the live project will not match git:
-
-```bash
-firebase deploy --only firestore:rules,storage
-```
+- Call cleanup runs in the clients; connectivity across strict networks relies on the TURN relay.
+- Upload rate limits run in the client; Storage rules still cap file size and type.
 
 ---
 
 ## Getting started
 
+Requirements: Node 24+, and Java 21+ for the Firebase emulators.
+
 ```bash
 npm install
-```
-
-Create a `.env` with your Firebase web API key:
-
-```bash
-VITE_API_KEY=<your-key>
-```
-
-```bash
+cp .env.example .env   # add your Firebase web API key (and TURN credentials for calls)
 npm run dev
+```
+
+Or run everything locally against the emulators, with demo data:
+
+```bash
+npm run emulators         # terminal 1
+npm run seed:emulators    # terminal 2
+npm run dev:emulators     # terminal 2, then sign in as nadia@reactchat.dev / Password123!
 ```
 
 | Script | Purpose |
 |--------|---------|
 | `npm run dev` | Local development server |
 | `npm run build` | Production build |
-| `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
 | `npm test` | Unit tests (Vitest) |
+| `npm run test:rules` | Firestore rules tests (emulator) |
+| `npm run test:integration` | End-to-end flows against seeded emulators |
+| `npm run size` | Bundle size budgets (after a build) |
 
 ---
 
@@ -91,9 +90,14 @@ npm run dev
 
 | Doc | Contents |
 |-----|----------|
-| [Documentation/README.md](./Documentation/README.md) | Index |
-| [documentation.md](./Documentation/documentation.md) | Codebase overview |
-| [firebase.md](./Documentation/firebase.md) | Schemas, rules, deploy |
-| [chat-flow.md](./Documentation/chat-flow.md) | Create / list / send flows |
-| [calls.md](./Documentation/calls.md) | WebRTC call design and limits |
-| [checklist.md](./Documentation/checklist.md) | Implementation status |
+| [docs/architecture.md](./docs/architecture.md) | Stack, folders, state, code splitting |
+| [docs/data-model.md](./docs/data-model.md) | Collections, fields, indexes, security model |
+| [docs/calls.md](./docs/calls.md) | WebRTC calls: signaling, call states, relay |
+| [docs/testing.md](./docs/testing.md) | Emulators, rules and integration tests, demo data, CI |
+| [docs/adr/](./docs/adr/README.md) | Architecture decision records |
+
+---
+
+## License
+
+[MIT](./LICENSE)

@@ -244,16 +244,7 @@
 
 /* ----------- scroll bar css ------------ */
 
+/* Scrollbars are hidden; lists still scroll by wheel, touch and keyboard */
 ::-webkit-scrollbar {
   width: 0px;
 }
-
-/* TODO: Scroll Bar - should have width but doesn't affect the Div */
-/* ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #181717;
-  border-radius: 10px;
-} */

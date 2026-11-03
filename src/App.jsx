@@ -1,21 +1,27 @@
-import React, { useEffect } from "react";
-import List from "./components/list/List";
-import Chat from "./components/chat/Chat";
-import Details from "./components/details/Details";
+import { Suspense, lazy, useEffect } from "react";
 import Login from "./components/login/Login";
 import Notification from "./components/notification/Notification";
-import CallOverlay from "./components/call/CallOverlay";
-import ErrorBoundary from "./components/ErrorBoundary";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./lib/firebase";
 import { useUserStore } from "./lib/userStore";
 import { useChatStore } from "./lib/chatStore";
-import { bumpLastActive } from "./lib/presence";
+
+// The signed-in app (and Firestore with it) is a separate chunk. It starts
+// downloading as soon as the login screen is idle, so it's usually ready by
+// the time someone has typed their password.
+const loadSignedInApp = () => import("./SignedInApp");
+const SignedInApp = lazy(loadSignedInApp);
+
+const whenIdle = (callback) =>
+  "requestIdleCallback" in window
+    ? window.requestIdleCallback(callback, { timeout: 2000 })
+    : setTimeout(callback, 300);
+
+const Loading = () => <div className="loading">Loading...</div>;
 
 const App = () => {
-  // Get the current user from zustand userStore
   const { currentUser, isLoading, fetchUserInfo } = useUserStore();
-  const { chatId, showDetails } = useChatStore();
+  const { chatId } = useChatStore();
 
   // Fetch the user info when the app loads
   useEffect(() => {
@@ -31,47 +37,24 @@ const App = () => {
     return () => unSub();
   }, [fetchUserInfo]);
 
-  // Heartbeat presence while signed in
+  // Prefetch the signed-in chunk while the login screen is showing
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (isLoading || currentUser) return;
+    whenIdle(() => {
+      loadSignedInApp().catch(() => {});
+    });
+  }, [isLoading, currentUser]);
 
-    const tick = () => {
-      bumpLastActive(currentUser.id).catch((error) => {
-        console.warn(
-          "[App] Failed to bump lastActive:",
-          error.code,
-          error.message
-        );
-      });
-    };
-
-    tick();
-    const intervalId = setInterval(tick, 60_000);
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") tick();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [currentUser?.id]);
-
-  if (isLoading) return <div className="loading">Loading...</div>;
+  if (isLoading) return <Loading />;
 
   return (
     <div className={`container${chatId ? " chat-open" : ""}`}>
       {!currentUser ? (
         <Login />
       ) : (
-        <ErrorBoundary>
-          <List />
-          {chatId && <Chat />}
-          {chatId && showDetails && <Details />}
-          <CallOverlay />
-        </ErrorBoundary>
+        <Suspense fallback={<Loading />}>
+          <SignedInApp />
+        </Suspense>
       )}
 
       <Notification />

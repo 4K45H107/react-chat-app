@@ -15,7 +15,8 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { auth, db } from "../../src/lib/firebase";
+import { auth } from "../../src/lib/firebase";
+import { db } from "../../src/lib/db";
 import * as chats from "../../src/lib/chatService";
 import {
   createCall,

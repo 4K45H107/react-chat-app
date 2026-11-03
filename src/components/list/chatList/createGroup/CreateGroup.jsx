@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../addUser/AddUser.css";
 import "./CreateGroup.css";
 import { toast } from "react-toastify";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
-import { db } from "../../../../lib/firebase";
+import { db } from "../../../../lib/db";
 import { useUserStore } from "../../../../lib/userStore";
 import { normalizeUser } from "../../../../lib/normalizeUser";
 import { createGroupChat } from "../../../../lib/chatService";

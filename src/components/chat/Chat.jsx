@@ -10,7 +10,7 @@ import {
   sendMessage,
 } from "../../lib/chatService";
 import { rateLimitToastMessage } from "../../lib/rateLimit";
-import { requestStartCall } from "../call/CallOverlay";
+import { requestStartCall } from "../../lib/callEvents";
 import { useCallStore } from "../../lib/callStore";
 import CameraCaptureOverlay from "./CameraCaptureOverlay";
 import ChatComposer from "./ChatComposer";
