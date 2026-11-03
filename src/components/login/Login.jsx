@@ -122,16 +122,12 @@ const Login = () => {
 
       // Write profile before avatar upload so auth bootstrap can find the doc
       // (onAuthStateChanged fires as soon as Auth is created).
+      // Public profile only: the email stays in Firebase Auth.
       await setDoc(doc(db, "users", cred.user.uid), {
         username,
-        email,
         id: cred.user.uid,
         blocked: [],
         avatar: "",
-      });
-
-      await setDoc(doc(db, "userChats", cred.user.uid), {
-        chats: [],
       });
 
       await useUserStore.getState().fetchUserInfo(cred.user.uid);
@@ -203,6 +199,7 @@ const Login = () => {
               className="username"
               name="username"
               autoComplete="nickname"
+              maxLength={40}
             />
             <input
               type="email"

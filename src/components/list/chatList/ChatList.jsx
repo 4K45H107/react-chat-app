@@ -1,26 +1,41 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./ChatList.css";
 import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
 import CreateGroup from "./createGroup/CreateGroup";
 import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { normalizeUser } from "../../../lib/normalizeUser";
+import {
+  getChatActivity,
+  listenChatPrefs,
+  listenUserChats,
+} from "../../../lib/chatService";
 import {
   ensureNotificationPermission,
   getUnreadNotificationTargets,
   showChatNotification,
 } from "../../../lib/notifications";
 
+/** Profiles are re-read at most this often (typing updates re-run the list). */
+const PROFILE_TTL_MS = 60_000;
+const profileCache = new Map();
+
 const loadUserProfile = async (userId) => {
   if (!userId || typeof userId !== "string") return null;
 
+  const cached = profileCache.get(userId);
+  if (cached && Date.now() - cached.at < PROFILE_TTL_MS) return cached.user;
+
   try {
     const userDocSnap = await getDoc(doc(db, "users", userId));
-    if (!userDocSnap.exists()) return null;
-    return normalizeUser({ id: userDocSnap.id, ...userDocSnap.data() });
+    const user = userDocSnap.exists()
+      ? normalizeUser({ id: userDocSnap.id, ...userDocSnap.data() })
+      : null;
+    profileCache.set(userId, { user, at: Date.now() });
+    return user;
   } catch (error) {
     console.error(
       "[ChatList] Failed to load user profile:",
@@ -33,13 +48,57 @@ const loadUserProfile = async (userId) => {
   }
 };
 
+/** Turn a chat doc into a sidebar item for the current user. */
+const toSidebarItem = async (chat, currentUserId) => {
+  const participantIds = chat.participantIds ?? [];
+  const otherIds = participantIds.filter(
+    (id) => typeof id === "string" && id && id !== currentUserId
+  );
+  const base = { chatId: chat.chatId, ...getChatActivity(chat, currentUserId) };
+
+  if (chat.type === "group") {
+    const groupName = chat.name || "Group";
+    const groupAvatar = chat.avatar || null;
+    const members = (
+      await Promise.all(otherIds.slice(0, 12).map((id) => loadUserProfile(id)))
+    ).filter(Boolean);
+
+    return {
+      ...base,
+      isGroup: true,
+      groupName,
+      groupAvatar,
+      participantIds,
+      members,
+      user: {
+        id: chat.chatId,
+        username: groupName,
+        avatar: groupAvatar || "./avatar.png",
+        blocked: [],
+      },
+    };
+  }
+
+  const receiverId = otherIds[0];
+  const user = await loadUserProfile(receiverId);
+  if (!user) {
+    console.warn("[ChatList] Skipping chat — user profile missing:", receiverId);
+    return null;
+  }
+
+  return { ...base, receiverId, user };
+};
+
 const ChatList = () => {
   const [modalMode, setModalMode] = useState(null); // "dm" | "group" | null
-  const [chats, setChats] = useState([]);
+  const [rawChats, setRawChats] = useState([]);
+  const [prefs, setPrefs] = useState({});
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const previousChatsRef = useRef(null);
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
 
   const { currentUser } = useUserStore();
   const { changeChat, chatId } = useChatStore();
@@ -50,80 +109,45 @@ const ChatList = () => {
     ensureNotificationPermission().catch(() => {});
   }, []);
 
+  // Private per-chat settings (muted / archived)
+  useEffect(() => {
+    const unSub = listenChatPrefs(currentUser.id, {
+      onData: setPrefs,
+      onError: (error) => {
+        console.warn(
+          "[ChatList] Failed to listen to chat settings:",
+          error.code,
+          error.message
+        );
+      },
+    });
+    return () => unSub();
+  }, [currentUser.id]);
+
+  // The sidebar: every chat this user is a member of, newest first
   useEffect(() => {
     setIsLoadingList(true);
     previousChatsRef.current = null;
-    const unSub = onSnapshot(
-      doc(db, "userChats", currentUser.id),
-      async (res) => {
+    let latestRun = 0;
+
+    const unSub = listenUserChats(currentUser.id, {
+      onData: async (chatDocs) => {
+        const run = ++latestRun;
         try {
-          const items = res.data()?.chats ?? [];
+          const chatList = (
+            await Promise.all(
+              chatDocs.map((chat) => toSidebarItem(chat, currentUser.id))
+            )
+          ).filter(Boolean);
+          if (run !== latestRun) return;
 
-          const promises = items.map(async (item) => {
-            if (item.isGroup) {
-              try {
-                const chatSnap = await getDoc(doc(db, "chats", item.chatId));
-                const chatData = chatSnap.exists() ? chatSnap.data() : {};
-                const participantIds = chatData.participantIds ?? [];
-                const groupName =
-                  chatData.name || item.groupName || "Group";
-                const groupAvatar =
-                  chatData.avatar || item.groupAvatar || null;
-
-                const otherIds = participantIds.filter(
-                  (id) => typeof id === "string" && id && id !== currentUser.id
-                );
-                const members = (
-                  await Promise.all(
-                    otherIds.slice(0, 12).map((id) => loadUserProfile(id))
-                  )
-                ).filter(Boolean);
-
-                return {
-                  ...item,
-                  isGroup: true,
-                  groupName,
-                  groupAvatar,
-                  participantIds,
-                  members,
-                  user: {
-                    id: item.chatId,
-                    username: groupName,
-                    avatar: groupAvatar || "./avatar.png",
-                    blocked: [],
-                  },
-                };
-              } catch (error) {
-                console.error(
-                  "[ChatList] Failed to load group chat:",
-                  item.chatId,
-                  error.code,
-                  error.message,
-                  error
-                );
-                return null;
-              }
-            }
-
-            if (!item.receiverId) return null;
-
-            const user = await loadUserProfile(item.receiverId);
-            if (!user) {
-              console.warn(
-                "[ChatList] Skipping chat — user profile missing:",
-                item.receiverId
-              );
-              return null;
-            }
-
-            return { ...item, user };
-          });
-
-          const chatList = (await Promise.all(promises)).filter(Boolean);
-          chatList.sort((a, b) => b.updatedAt - a.updatedAt);
+          const withPrefs = chatList.map((chat) => ({
+            ...chat,
+            muted: Boolean(prefsRef.current[chat.chatId]?.muted),
+          }));
 
           const targets = getUnreadNotificationTargets(
-            chatList,
+            withPrefs,
             previousChatsRef.current,
             activeChatIdRef.current
           );
@@ -163,7 +187,7 @@ const ChatList = () => {
             });
           }
 
-          setChats(chatList);
+          setRawChats(chatList);
         } catch (error) {
           console.error(
             "[ChatList] Failed to process chat list:",
@@ -173,23 +197,36 @@ const ChatList = () => {
           );
           toast.error("Failed to load chat list. Please try again.");
         } finally {
-          setIsLoadingList(false);
+          if (run === latestRun) setIsLoadingList(false);
         }
       },
-      (error) => {
+      onError: (error) => {
         console.error(
-          "[ChatList] Failed to listen to userChats:",
+          "[ChatList] Failed to listen to chats:",
           error.code,
           error.message,
           error
         );
         toast.error("Failed to load chat list. Please try again.");
         setIsLoadingList(false);
-      }
-    );
+      },
+    });
 
-    return () => unSub();
+    return () => {
+      latestRun += 1;
+      unSub();
+    };
   }, [currentUser.id, changeChat]);
+
+  const chats = useMemo(
+    () =>
+      rawChats.map((chat) => ({
+        ...chat,
+        muted: Boolean(prefs[chat.chatId]?.muted),
+        archived: Boolean(prefs[chat.chatId]?.archived),
+      })),
+    [rawChats, prefs]
+  );
 
   const openChat = (chat) => {
     if (chat.isGroup) {

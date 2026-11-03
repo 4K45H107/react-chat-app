@@ -8,7 +8,6 @@ import {
   deleteMessage,
   editMessage,
   sendMessage,
-  syncSidebarPreview,
 } from "../../lib/chatService";
 import { rateLimitToastMessage } from "../../lib/rateLimit";
 import { requestStartCall } from "../call/CallOverlay";
@@ -213,10 +212,6 @@ const Chat = () => {
         senderId: currentUser.id,
         text: caption,
         img: imgUrl,
-      });
-      await syncSidebarPreview({
-        chatId,
-        currentUserId: currentUser.id,
         preview: caption || "Photo",
       });
       setText("");
@@ -251,11 +246,6 @@ const Chat = () => {
         chatId,
         senderId: currentUser.id,
         text,
-      });
-      await syncSidebarPreview({
-        chatId,
-        currentUserId: currentUser.id,
-        preview: text,
       });
       setText("");
     } catch (error) {

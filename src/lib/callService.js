@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { syncSidebarPreview } from "./chatService";
+import { sendMessage } from "./chatService";
 import { formatAudioClock } from "./audioRecord";
 
 /**
@@ -227,26 +227,20 @@ export const postCallHistoryMessage = async ({
   }
 
   try {
-    await setDoc(messageRef, {
-      id: callId,
+    await sendMessage({
+      chatId,
       senderId,
       text,
       call: callMeta,
-      createdAt: serverTimestamp(),
+      messageId: callId,
     });
   } catch (error) {
-    // Another peer may have won the create race
+    // The other peer may have won the race; a second write is refused.
     if (error?.code === "already-exists" || error?.code === "permission-denied") {
       return false;
     }
     throw error;
   }
-
-  await syncSidebarPreview({
-    chatId,
-    currentUserId: senderId,
-    preview: text,
-  });
 
   return true;
 };

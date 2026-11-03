@@ -1,205 +1,299 @@
 rules_version = '2';
 
+// Security model
+// - Nobody writes another user's documents. The sidebar is a query over
+//   chats/{chatId} (members only), and per-user settings live in
+//   userChats/{uid}, which only its owner can read or write.
+// - Every write is limited to the fields it may touch, and server timestamps
+//   are enforced so history can't be backdated.
+// - Blocking is enforced here, not only in the UI.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
       return request.auth != null;
     }
 
-    function isChatParticipant() {
-      return signedIn()
-        && 'participantIds' in resource.data
-        && request.auth.uid in resource.data.participantIds;
+    function uid() {
+      return request.auth.uid;
     }
 
-    function isCreatingDirectChat() {
-      return request.resource.data.participantIds.size() == 2
-        && (!('type' in request.resource.data) || request.resource.data.type == 'direct');
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    function isCreatingGroupChat() {
-      return request.resource.data.type == 'group'
-        && request.resource.data.participantIds.size() >= 3
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60;
+    function changed(key) {
+      return key in changedKeys();
     }
 
-    function isCreatingAsParticipant() {
-      return signedIn()
-        && 'participantIds' in request.resource.data
-        && request.auth.uid in request.resource.data.participantIds
-        && request.resource.data.participantIds.size() >= 2
-        && (isCreatingDirectChat() || isCreatingGroupChat());
+    function userDoc(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
     }
 
-    function canAccessChat(chatId) {
-      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
-      return signedIn() && (
-        !('participantIds' in chat) ||
-        request.auth.uid in chat.participantIds
-      );
+    function chatDoc(chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId)).data;
     }
 
-    // User profiles — readable by any signed-in user (needed for username search)
+    // True if either user has blocked the other.
+    function blockedBetween(a, b) {
+      return b in userDoc(a).get('blocked', [])
+        || a in userDoc(b).get('blocked', []);
+    }
+
+    function isMember(chat) {
+      return signedIn() && uid() in chat.participantIds;
+    }
+
+    // The other member of a direct chat.
+    function partnerOf(chat) {
+      return chat.participantIds.removeAll([uid()])[0];
+    }
+
+    function canPostIn(chat) {
+      return isMember(chat)
+        && (chat.type == 'group' || !blockedBetween(uid(), partnerOf(chat)));
+    }
+
+    // ── Users: public profile (no email; Firebase Auth keeps that) ─────────
     match /users/{userId} {
+      function validProfile() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['id', 'username', 'avatar', 'blocked', 'lastActive'])
+          && data.id == userId
+          && data.username is string
+          && data.username.size() >= 2
+          && data.username.size() <= 40
+          && data.get('avatar', '') is string
+          && data.get('avatar', '').size() <= 4096
+          && data.get('blocked', []) is list
+          && data.get('blocked', []).size() <= 500;
+      }
+
       allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() && uid() == userId && validProfile();
+      allow delete: if false;
     }
 
-    // Per-user chat list — readable by any signed-in user (sender must read
-    // receiver's doc to update lastMessage when sending a message).
-    // Owner may update freely; others may only patch the chats array.
+    // ── Per-user chat settings (muted / archived): owner only ──────────────
     match /userChats/{userId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && (
-        request.auth.uid == userId ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['chats'])
-      );
+      allow read, delete: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['prefs'])
+        && request.resource.data.prefs is map;
     }
 
-    // Chat threads — participants only (legacy docs without participantIds
-    // stay readable/writable by any signed-in user until backfilled)
+    // ── Chats ──────────────────────────────────────────────────────────────
     match /chats/{chatId} {
-      allow read: if signedIn() && (
-        !('participantIds' in resource.data) || isChatParticipant()
-      );
-      allow create: if isCreatingAsParticipant();
-      allow update: if signedIn() && (
-        !('participantIds' in resource.data) || isChatParticipant()
-      );
-      allow delete: if isChatParticipant();
+      function validNewChat() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['type', 'participantIds', 'createdBy', 'createdAt', 'updatedAt', 'readAt', 'name'])
+          && data.createdBy == uid()
+          && data.createdAt == request.time
+          && data.updatedAt == request.time
+          && data.readAt == {}
+          && data.participantIds is list
+          && uid() in data.participantIds;
+      }
 
-      // Messages live in a subcollection (not an array on the chat doc)
+      // Direct chat ids are "<lowUid>_<highUid>", so a pair can only ever
+      // have one chat, and blocked users can't start one.
+      function validNewDirectChat() {
+        let data = request.resource.data;
+        let ids = data.participantIds;
+        return data.type == 'direct'
+          && !('name' in data)
+          && ids.size() == 2
+          && ids[0] < ids[1]
+          && chatId == ids[0] + '_' + ids[1]
+          && exists(/databases/$(database)/documents/users/$(partnerOf(data)))
+          && !blockedBetween(ids[0], ids[1]);
+      }
+
+      function validNewGroupChat() {
+        let data = request.resource.data;
+        return data.type == 'group'
+          && data.participantIds.size() >= 3
+          && data.participantIds.size() <= 50
+          && data.name is string
+          && data.name.size() > 0
+          && data.name.size() <= 60;
+      }
+
+      // An update may only touch these fields, and each one has a rule.
+      function validChatUpdate() {
+        let data = request.resource.data;
+        return changedKeys().hasOnly(['lastMessage', 'updatedAt', 'readAt', 'typing', 'name', 'avatar', 'participantIds'])
+          // Preview of the newest message: written by its sender, now.
+          && (!changed('lastMessage') || (
+            data.lastMessage.keys().hasOnly(['text', 'senderId'])
+            && data.lastMessage.senderId == uid()
+            && data.lastMessage.text is string
+            && data.lastMessage.text.size() <= 200
+            && data.updatedAt == request.time
+            && canPostIn(resource.data)
+          ))
+          && (!changed('updatedAt') || changed('lastMessage'))
+          // Read markers: each member can only move their own.
+          && (!changed('readAt') || (
+            data.readAt.diff(resource.data.get('readAt', {})).affectedKeys().hasOnly([uid()])
+            && data.readAt[uid()] == request.time
+          ))
+          // Typing indicator: only about yourself.
+          && (!changed('typing') || (
+            data.typing.keys().hasOnly(['userId', 'updatedAt'])
+            && (data.typing.userId == uid() || data.typing.userId == null)
+          ))
+          // Group name and photo: groups only.
+          && (!changed('name') || (
+            resource.data.type == 'group'
+            && data.name is string
+            && data.name.size() > 0
+            && data.name.size() <= 60
+          ))
+          && (!changed('avatar') || (
+            resource.data.type == 'group'
+            && data.avatar is string
+            && data.avatar.size() <= 4096
+          ))
+          // Membership: the only change allowed is removing yourself.
+          && (!changed('participantIds') || (
+            resource.data.type == 'group'
+            && data.participantIds == resource.data.participantIds.removeAll([uid()])
+          ));
+      }
+
+      // A get on a chat that doesn't exist yet is allowed, so the app can
+      // check for an existing direct chat before creating one.
+      allow get: if signedIn() && (resource == null || isMember(resource.data));
+      allow list: if signedIn() && uid() in resource.data.participantIds;
+      allow create: if signedIn()
+        && validNewChat()
+        && (validNewDirectChat() || validNewGroupChat());
+      allow update: if isMember(resource.data) && validChatUpdate();
+      allow delete: if false;
+
+      // ── Messages ─────────────────────────────────────────────────────────
       match /messages/{messageId} {
-        allow read: if canAccessChat(chatId);
-        allow create: if canAccessChat(chatId)
-          && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.id == messageId
-          && request.resource.data.text is string
-          && request.resource.data.text.size() <= 2000
-          && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt'])
-          && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'img', 'audio', 'audioDuration', 'call'])
-          && (
-            !('img' in request.resource.data) ||
-            (
-              request.resource.data.img is string
-              && request.resource.data.img.size() > 0
-              && request.resource.data.img.size() <= 4096
-            )
-          )
-          && (
-            !('audio' in request.resource.data) ||
-            (
-              request.resource.data.audio is string
-              && request.resource.data.audio.size() > 0
-              && request.resource.data.audio.size() <= 4096
-            )
-          )
-          && (
-            !('audioDuration' in request.resource.data) ||
-            (
-              request.resource.data.audioDuration is number
-              && request.resource.data.audioDuration >= 0
-              && request.resource.data.audioDuration <= 600
-            )
-          )
-          && (
-            !('call' in request.resource.data) ||
-            (
-              request.resource.data.call.keys().hasAll(['type', 'status', 'callId'])
-              && request.resource.data.call.keys().hasOnly(['type', 'status', 'callId', 'durationSec'])
-              && request.resource.data.call.type in ['voice', 'video']
-              && request.resource.data.call.status in ['ended', 'declined', 'missed', 'busy']
-              && request.resource.data.call.callId is string
-              && request.resource.data.call.callId == messageId
-              && (
-                !('durationSec' in request.resource.data.call) ||
-                (
-                  request.resource.data.call.durationSec is number
-                  && request.resource.data.call.durationSec >= 0
-                  && request.resource.data.call.durationSec <= 86400
-                )
-              )
-            )
-          );
-        // Soft-delete or text edit: sender only
-        allow update: if canAccessChat(chatId)
-          && resource.data.senderId == request.auth.uid
-          && request.resource.data.senderId == resource.data.senderId
-          && request.resource.data.id == resource.data.id
-          && (
-            (
-              request.resource.data.deleted == true
-              && request.resource.data.text is string
-              && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'deleted'])
-              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'deleted', 'img', 'audio', 'audioDuration', 'call'])
-            )
-            ||
-            (
-              (!('deleted' in resource.data) || resource.data.deleted != true)
-              && !('deleted' in request.resource.data)
-              && request.resource.data.edited == true
-              && request.resource.data.text is string
-              && request.resource.data.text.size() > 0
-              && request.resource.data.text.size() <= 2000
-              && request.resource.data.keys().hasAll(['id', 'senderId', 'text', 'createdAt', 'edited'])
-              && request.resource.data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'edited', 'editedAt', 'img', 'audio', 'audioDuration', 'call'])
-            )
-          );
+        function validCallEntry(call) {
+          return call.keys().hasAll(['type', 'status', 'callId'])
+            && call.keys().hasOnly(['type', 'status', 'callId', 'durationSec'])
+            && call.type in ['voice', 'video']
+            && call.status in ['ended', 'declined', 'missed', 'busy']
+            && call.callId == messageId
+            && (!('durationSec' in call) || (call.durationSec is number && call.durationSec >= 0 && call.durationSec <= 86400));
+        }
+
+        function validNewMessage() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['id', 'senderId', 'text', 'createdAt'])
+            && data.keys().hasOnly(['id', 'senderId', 'text', 'createdAt', 'img', 'audio', 'audioDuration', 'call'])
+            && data.id == messageId
+            && data.senderId == uid()
+            && data.createdAt == request.time
+            && data.text is string
+            && data.text.size() <= 2000
+            && (!('img' in data) || (data.img is string && data.img.size() > 0 && data.img.size() <= 4096))
+            && (!('audio' in data) || (data.audio is string && data.audio.size() > 0 && data.audio.size() <= 4096))
+            && (!('audioDuration' in data) || (data.audioDuration is number && data.audioDuration >= 0 && data.audioDuration <= 600))
+            && (!('call' in data) || validCallEntry(data.call));
+        }
+
+        // The sender may soft-delete or edit their own message; nothing else
+        // about it may change.
+        function validMessageUpdate() {
+          let data = request.resource.data;
+          let keys = data.diff(resource.data).affectedKeys();
+          let isDelete = data.deleted == true
+            && data.text == ''
+            && keys.hasOnly(['deleted', 'text', 'img', 'audio', 'audioDuration', 'call'])
+            && !data.keys().hasAny(['img', 'audio', 'audioDuration', 'call']);
+          let isEdit = resource.data.get('deleted', false) != true
+            && !('deleted' in data)
+            && !('call' in resource.data)
+            && data.edited == true
+            && data.editedAt == request.time
+            && data.text is string
+            && data.text.size() > 0
+            && data.text.size() <= 2000
+            && keys.hasOnly(['text', 'edited', 'editedAt']);
+          return resource.data.senderId == uid() && (isDelete || isEdit);
+        }
+
+        allow read: if isMember(chatDoc(chatId));
+        allow create: if canPostIn(chatDoc(chatId)) && validNewMessage();
+        allow update: if isMember(chatDoc(chatId)) && validMessageUpdate();
         allow delete: if false;
       }
     }
 
-    // 1:1 WebRTC call signaling (offer/answer + ICE)
+    // ── 1:1 call signaling (offer / answer / ICE) ──────────────────────────
     match /calls/{callId} {
-      function isCallParticipant() {
-        return signedIn() && (
-          request.auth.uid == resource.data.callerId ||
-          request.auth.uid == resource.data.calleeId
-        );
+      function isCallParty(call) {
+        return signedIn() && (uid() == call.callerId || uid() == call.calleeId);
       }
 
-      function isCallParticipantCreate() {
-        return signedIn()
-          && request.auth.uid == request.resource.data.callerId
-          && request.resource.data.callerId is string
-          && request.resource.data.calleeId is string
-          && request.resource.data.callerId != request.resource.data.calleeId
-          && request.resource.data.type in ['voice', 'video']
-          && request.resource.data.status == 'ringing';
+      function validNewCall() {
+        let data = request.resource.data;
+        let chat = chatDoc(data.chatId);
+        return data.keys().hasOnly(['id', 'chatId', 'callerId', 'calleeId', 'callerName', 'calleeName', 'type', 'status', 'offer', 'answer', 'createdAt', 'endedAt', 'endedBy'])
+          && data.id == callId
+          && data.callerId == uid()
+          && data.calleeId != uid()
+          && data.type in ['voice', 'video']
+          && data.status == 'ringing'
+          && data.answer == null
+          && data.endedAt == null
+          && data.endedBy == null
+          && data.createdAt == request.time
+          && data.offer is map
+          && chat.type == 'direct'
+          && uid() in chat.participantIds
+          && data.calleeId in chat.participantIds
+          && !blockedBetween(uid(), data.calleeId);
       }
 
-      allow read: if signedIn() && (
-        resource.data.callerId == request.auth.uid ||
-        resource.data.calleeId == request.auth.uid
-      );
-      allow create: if isCallParticipantCreate();
-      allow update: if isCallParticipant();
-      allow delete: if isCallParticipant();
+      // ringing → active | declined | busy   (callee only)
+      // ringing → missed | ended             (either side)
+      // active  → ended                      (either side)
+      function validCallUpdate() {
+        let data = request.resource.data;
+        let from = resource.data.status;
+        let to = data.status;
+        let isCallee = uid() == resource.data.calleeId;
+        let ending = to in ['ended', 'declined', 'missed', 'busy'];
+        return changedKeys().hasOnly(['status', 'answer', 'endedAt', 'endedBy'])
+          && (
+            (from == 'ringing' && to == 'active' && isCallee
+              && data.answer is map
+              && changedKeys().hasOnly(['status', 'answer']))
+            || (from == 'ringing' && to in ['declined', 'busy'] && isCallee)
+            || (from == 'ringing' && to in ['missed', 'ended'])
+            || (from == 'active' && to == 'ended')
+          )
+          && (!ending || (
+            data.endedAt == request.time
+            && !changed('answer')
+            && (data.endedBy == null || data.endedBy == uid())
+          ));
+      }
+
+      allow read: if isCallParty(resource.data);
+      allow create: if signedIn() && validNewCall();
+      allow update: if isCallParty(resource.data) && validCallUpdate();
+      allow delete: if isCallParty(resource.data);
 
       match /iceCandidates/{candidateId} {
         function parentCall() {
           return get(/databases/$(database)/documents/calls/$(callId)).data;
         }
 
-        allow read: if signedIn() && (
-          request.auth.uid == parentCall().callerId ||
-          request.auth.uid == parentCall().calleeId
-        );
-        allow create: if signedIn()
-          && request.resource.data.from == request.auth.uid
-          && (
-            request.auth.uid == parentCall().callerId ||
-            request.auth.uid == parentCall().calleeId
-          );
+        allow read: if isCallParty(parentCall());
+        allow create: if isCallParty(parentCall())
+          && request.resource.data.keys().hasOnly(['from', 'candidate', 'createdAt'])
+          && request.resource.data.from == uid()
+          && request.resource.data.candidate is map;
         allow update: if false;
-        allow delete: if signedIn() && (
-          request.auth.uid == parentCall().callerId ||
-          request.auth.uid == parentCall().calleeId
-        );
+        allow delete: if isCallParty(parentCall());
       }
     }
   }

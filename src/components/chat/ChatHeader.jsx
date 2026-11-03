@@ -52,7 +52,7 @@ export default function ChatHeader({
                 ? `${participantCount} members`
                 : partnerOnline
                   ? "Online"
-                  : (user?.email ?? "Offline")}
+                  : "Offline"}
           </p>
         </div>
       </div>
