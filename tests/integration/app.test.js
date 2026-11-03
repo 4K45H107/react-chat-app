@@ -49,63 +49,63 @@ const signInAs = async (name) => {
 const chatData = async (chatId) =>
   (await getDoc(doc(db, "chats", chatId))).data();
 
-let ayesha, rafi, nadia, tanvir;
+let nadia, tanvir, rafi, sadia;
 
 beforeAll(async () => {
+  sadia = await signInAs("sadia");
+  rafi = await signInAs("rafi");
   tanvir = await signInAs("tanvir");
   nadia = await signInAs("nadia");
-  rafi = await signInAs("rafi");
-  ayesha = await signInAs("ayesha");
 });
 
 describe("sidebar", () => {
   it("lists the user's chats, newest first, with unread state", async () => {
-    const list = (await firstSnapshot(chats.listenUserChats, ayesha)).map(
-      (chat) => ({ chatId: chat.chatId, ...chats.getChatActivity(chat, ayesha) })
+    const list = (await firstSnapshot(chats.listenUserChats, nadia)).map(
+      (chat) => ({ chatId: chat.chatId, ...chats.getChatActivity(chat, nadia) })
     );
 
     expect(list).toHaveLength(3);
     expect(list[0]).toMatchObject({
-      chatId: chats.directChatId(ayesha, nadia),
-      lastMessage: "Tanvir might join too",
+      chatId: chats.directChatId(nadia, sadia),
+      lastMessage: "Rafi might join too",
       isSeen: false,
     });
     expect(list.slice(1).every((chat) => chat.isSeen)).toBe(true);
   });
 
   it("marks a chat read when it's opened", async () => {
-    const chatId = chats.directChatId(ayesha, nadia);
-    await chats.markChatAsSeen(ayesha, chatId);
-    expect(chats.getChatActivity(await chatData(chatId), ayesha).isSeen).toBe(
+    const chatId = chats.directChatId(nadia, sadia);
+    await chats.markChatAsSeen(nadia, chatId);
+    expect(chats.getChatActivity(await chatData(chatId), nadia).isSeen).toBe(
       true
     );
   });
 
   it("keeps mute and archive in private settings", async () => {
-    const chatId = chats.directChatId(ayesha, rafi);
-    await chats.updateOwnChatFlags(ayesha, chatId, { muted: true });
-    await chats.updateOwnChatFlags(ayesha, chatId, { archived: true });
+    const chatId = chats.directChatId(nadia, tanvir);
+    await chats.updateOwnChatFlags(nadia, chatId, { muted: true });
+    await chats.updateOwnChatFlags(nadia, chatId, { archived: true });
 
-    const prefs = await firstSnapshot(chats.listenChatPrefs, ayesha);
+    const prefs = await firstSnapshot(chats.listenChatPrefs, nadia);
     expect(prefs[chatId]).toEqual({ muted: true, archived: true });
   });
 });
 
 describe("messages", () => {
   it("writes the message and preview together; the partner sees it unread", async () => {
-    const chatId = chats.directChatId(ayesha, rafi);
+    const chatId = chats.directChatId(nadia, tanvir);
     const messageId = await chats.sendMessage({
       chatId,
-      senderId: ayesha,
+      senderId: nadia,
       text: "See you at standup",
     });
 
     const chat = await chatData(chatId);
     expect(chat.lastMessage).toEqual({
       text: "See you at standup",
-      senderId: ayesha,
+      senderId: nadia,
     });
-    expect(chats.getChatActivity(chat, rafi).isSeen).toBe(false);
+    expect(chats.getChatActivity(chat, tanvir).isSeen).toBe(false);
 
     await chats.editMessage(chatId, { id: messageId }, "See you at 10");
     await chats.deleteMessage(chatId, { id: messageId });
@@ -116,10 +116,10 @@ describe("messages", () => {
   });
 
   it("previews photos and voice messages", async () => {
-    const chatId = chats.directChatId(ayesha, rafi);
+    const chatId = chats.directChatId(nadia, tanvir);
     await chats.sendMessage({
       chatId,
-      senderId: ayesha,
+      senderId: nadia,
       img: "https://example.com/photo.png",
       preview: "Photo",
     });
@@ -127,7 +127,7 @@ describe("messages", () => {
 
     await chats.sendMessage({
       chatId,
-      senderId: ayesha,
+      senderId: nadia,
       audio: "https://example.com/voice.webm",
       audioDuration: 3,
       preview: "Voice message",
@@ -136,77 +136,77 @@ describe("messages", () => {
   });
 
   it("are refused in both directions once someone blocks", async () => {
-    const chatId = chats.directChatId(ayesha, tanvir);
-    await chats.createChat({ currentUserId: ayesha, otherUserId: tanvir });
-    await updateDoc(doc(db, "users", ayesha), { blocked: arrayUnion(tanvir) });
+    const chatId = chats.directChatId(nadia, rafi);
+    await chats.createChat({ currentUserId: nadia, otherUserId: rafi });
+    await updateDoc(doc(db, "users", nadia), { blocked: arrayUnion(rafi) });
 
     await expect(
-      chats.sendMessage({ chatId, senderId: ayesha, text: "hi" })
+      chats.sendMessage({ chatId, senderId: nadia, text: "hi" })
     ).rejects.toThrow();
-    await signInAs("tanvir");
+    await signInAs("rafi");
     await expect(
-      chats.sendMessage({ chatId, senderId: tanvir, text: "hi" })
+      chats.sendMessage({ chatId, senderId: rafi, text: "hi" })
     ).rejects.toThrow();
-    await signInAs("ayesha");
+    await signInAs("nadia");
   });
 });
 
 describe("chats", () => {
   it("creates one direct chat per pair", async () => {
-    expect(await chats.hasExistingChatWith(rafi, nadia)).toBe(false);
+    expect(await chats.hasExistingChatWith(rafi, sadia)).toBe(false);
     await signInAs("rafi");
-    const first = await chats.createChat({ currentUserId: rafi, otherUserId: nadia });
-    const second = await chats.createChat({ currentUserId: rafi, otherUserId: nadia });
+    const first = await chats.createChat({ currentUserId: rafi, otherUserId: sadia });
+    const second = await chats.createChat({ currentUserId: rafi, otherUserId: sadia });
     expect([first.created, second.created]).toEqual([true, false]);
-    expect(first.chatId).toBe(chats.directChatId(rafi, nadia));
-    await signInAs("ayesha");
+    expect(first.chatId).toBe(chats.directChatId(rafi, sadia));
+    await signInAs("nadia");
   });
 
   it("supports a group's whole life: create, photo, typing, message, leave", async () => {
     const chatId = await chats.createGroupChat({
-      creatorId: ayesha,
+      creatorId: nadia,
       name: "Book club",
-      memberIds: [rafi, nadia],
+      memberIds: [tanvir, sadia],
     });
     await chats.updateGroupAvatar({ chatId, avatarUrl: "https://example.com/g.png" });
-    await chats.setTypingStatus(chatId, ayesha, true);
-    await chats.setTypingStatus(chatId, ayesha, false);
-    await chats.sendMessage({ chatId, senderId: ayesha, text: "First book?" });
-    await chats.leaveGroupChat({ chatId, userId: ayesha });
+    await chats.setTypingStatus(chatId, nadia, true);
+    await chats.setTypingStatus(chatId, nadia, false);
+    await chats.sendMessage({ chatId, senderId: nadia, text: "First book?" });
+    await chats.leaveGroupChat({ chatId, userId: nadia });
 
-    const list = await firstSnapshot(chats.listenUserChats, ayesha);
+    const list = await firstSnapshot(chats.listenUserChats, nadia);
     expect(list.some((chat) => chat.chatId === chatId)).toBe(false);
   });
 });
 
 describe("calls", () => {
   it("rings, connects, ends and logs exactly one history message", async () => {
-    const chatId = chats.directChatId(ayesha, rafi);
+    const chatId = chats.directChatId(nadia, tanvir);
     const callId = await createCall({
       chatId,
-      callerId: ayesha,
-      calleeId: rafi,
+      callerId: nadia,
+      calleeId: tanvir,
       type: "voice",
       offer: { type: "offer", sdp: "offer-sdp" },
     });
 
-    await signInAs("rafi");
+    await signInAs("tanvir");
     await setCallAnswer(callId, { type: "answer", sdp: "answer-sdp" });
-    await updateCallStatus(callId, "ended", { endedBy: rafi });
+    await updateCallStatus(callId, "ended", { endedBy: tanvir });
     const entry = { chatId, callId, type: "voice", status: "ended", durationSec: 42 };
-    expect(await postCallHistoryMessage({ ...entry, senderId: rafi })).toBe(true);
+    expect(await postCallHistoryMessage({ ...entry, senderId: tanvir })).toBe(true);
 
-    await signInAs("ayesha");
-    expect(await postCallHistoryMessage({ ...entry, senderId: ayesha })).toBe(false);
+    await signInAs("nadia");
+    expect(await postCallHistoryMessage({ ...entry, senderId: nadia })).toBe(false);
     expect((await chatData(chatId)).lastMessage.text).toBe("Voice call · 0:42");
   });
 });
 
 describe("privacy", () => {
   it("keeps other users' settings, chats and emails out of reach", async () => {
-    await expect(getDoc(doc(db, "userChats", rafi))).rejects.toThrow();
+    await expect(getDoc(doc(db, "userChats", tanvir))).rejects.toThrow();
     await expect(getDocs(collection(db, "chats"))).rejects.toThrow();
-    const profile = (await getDoc(doc(db, "users", rafi))).data();
+    const profile = (await getDoc(doc(db, "users", tanvir))).data();
     expect(profile).not.toHaveProperty("email");
   });
 

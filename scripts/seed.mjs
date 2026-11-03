@@ -32,11 +32,13 @@ const bucket = getStorage().bucket();
 
 const DEMO_PASSWORD = "Password123!";
 
+// Nadia and Tanvir are the advertised demo logins; Rafi and Sadia fill out
+// the group and send each of them an unread message.
 const PEOPLE = [
-  { key: "ayesha", username: "Ayesha Rahman", color: "#7c5cff" },
-  { key: "rafi", username: "Rafi Hasan", color: "#0ea5e9" },
   { key: "nadia", username: "Nadia Karim", color: "#f97316" },
   { key: "tanvir", username: "Tanvir Ahmed", color: "#10b981" },
+  { key: "rafi", username: "Rafi Hasan", color: "#0ea5e9" },
+  { key: "sadia", username: "Sadia Islam", color: "#7c5cff" },
 ];
 
 const emailFor = (key) => `${key}@reactchat.dev`;
@@ -192,58 +194,74 @@ const seed = async () => {
     });
   }
 
-  const { ayesha, rafi, nadia, tanvir } = uid;
+  const { nadia, tanvir, rafi, sadia } = uid;
   const sunset = await uploadFile(
-    `images/${rafi}/sunset.svg`,
+    `images/${tanvir}/sunset.svg`,
     SUNSET_SVG,
     "image/svg+xml"
   );
   const tea = await uploadFile(`images/${nadia}/tea-garden.svg`, TEA_SVG, "image/svg+xml");
 
-  // Ayesha ↔ Rafi: the main demo thread (photo, edit, delete, call log)
+  // Nadia ↔ Tanvir: the main demo thread (photo, edit, delete, call log)
   const callId = randomUUID();
   await writeChat(
-    directId(ayesha, rafi),
+    directId(nadia, tanvir),
     {
       type: "direct",
-      participantIds: [ayesha, rafi].sort(),
-      createdBy: ayesha,
+      participantIds: [nadia, tanvir].sort(),
+      createdBy: nadia,
     },
     [
-      [ayesha, 26 * HOUR, "Hey Rafi! Did you finish the API review?"],
-      [rafi, 26 * HOUR - 4 * MINUTE, "Almost. Two endpoints left, I'll push tonight."],
-      [ayesha, 26 * HOUR - 6 * MINUTE, "Perfect, thanks 🙌"],
-      [rafi, 5 * HOUR, "", { deleted: true }],
-      [rafi, 5 * HOUR - MINUTE, "Caught this on the way back from Cox's Bazar", { img: sunset }],
-      [ayesha, 5 * HOUR - 3 * MINUTE, "Wow, that's unreal. Saving this as my wallpaper"],
-      [ayesha, 5 * HOUR - 4 * MINUTE, "Free for a quick call about the release?", { edited: true, editedAt: at(5 * HOUR - 4 * MINUTE + 20_000) }],
+      [nadia, 26 * HOUR, "Hey Tanvir! Did you finish the API review?"],
+      [tanvir, 26 * HOUR - 4 * MINUTE, "Almost. Two endpoints left, I'll push tonight."],
+      [nadia, 26 * HOUR - 6 * MINUTE, "Perfect, thanks 🙌"],
+      [tanvir, 5 * HOUR, "", { deleted: true }],
+      [tanvir, 5 * HOUR - MINUTE, "Caught this on the way back from Cox's Bazar", { img: sunset }],
+      [nadia, 5 * HOUR - 3 * MINUTE, "Wow, that's unreal. Saving this as my wallpaper"],
+      [nadia, 5 * HOUR - 4 * MINUTE, "Free for a quick call about the release?", { edited: true, editedAt: at(5 * HOUR - 4 * MINUTE + 20_000) }],
       [
-        rafi,
+        tanvir,
         4 * HOUR,
         "Video call · 12:34",
         { id: callId, call: { type: "video", status: "ended", callId, durationSec: 754 } },
       ],
-      [rafi, 4 * HOUR - 2 * MINUTE, "Good call. I'll update the ticket with what we agreed."],
-      [ayesha, 3 * HOUR, "Sounds good, see you at standup tomorrow!"],
+      [tanvir, 4 * HOUR - 2 * MINUTE, "Good call. I'll update the ticket with what we agreed."],
+      [nadia, 3 * HOUR, "Sounds good, see you at standup tomorrow!"],
     ],
-    { [ayesha]: 3 * HOUR, [rafi]: 3 * HOUR }
+    { [nadia]: 3 * HOUR, [tanvir]: 3 * HOUR }
   );
 
-  // Ayesha ↔ Nadia: left unread for Ayesha, to show the unread state
+  // Sadia → Nadia: unread for Nadia
   await writeChat(
-    directId(ayesha, nadia),
+    directId(nadia, sadia),
     {
       type: "direct",
-      participantIds: [ayesha, nadia].sort(),
-      createdBy: nadia,
+      participantIds: [nadia, sadia].sort(),
+      createdBy: sadia,
     },
     [
-      [nadia, 30 * HOUR, "Are we still on for lunch on Friday?"],
-      [ayesha, 29 * HOUR, "Yes! The new place in Gulshan?"],
-      [nadia, 40 * MINUTE, "Booked a table for 1 pm 🍜"],
-      [nadia, 38 * MINUTE, "Tanvir might join too"],
+      [sadia, 30 * HOUR, "Are we still on for lunch on Friday?"],
+      [nadia, 29 * HOUR, "Yes! The new place in Gulshan?"],
+      [sadia, 40 * MINUTE, "Booked a table for 1 pm 🍜"],
+      [sadia, 38 * MINUTE, "Rafi might join too"],
     ],
-    { [ayesha]: 29 * HOUR, [nadia]: 38 * MINUTE }
+    { [nadia]: 29 * HOUR, [sadia]: 38 * MINUTE }
+  );
+
+  // Rafi → Tanvir: unread for Tanvir
+  await writeChat(
+    directId(tanvir, rafi),
+    {
+      type: "direct",
+      participantIds: [tanvir, rafi].sort(),
+      createdBy: rafi,
+    },
+    [
+      [rafi, 20 * HOUR, "Can you send me the deployment checklist?"],
+      [tanvir, 19 * HOUR, "Sent it to your email. Ping me if anything's unclear"],
+      [rafi, 45 * MINUTE, "Got it, thanks! One question about the rollback step"],
+    ],
+    { [tanvir]: 19 * HOUR, [rafi]: 45 * MINUTE }
   );
 
   // Group: all four members
@@ -252,45 +270,29 @@ const seed = async () => {
     {
       type: "group",
       name: "Weekend Trip",
-      participantIds: [ayesha, rafi, nadia, tanvir],
+      participantIds: [nadia, tanvir, rafi, sadia],
       createdBy: tanvir,
     },
     [
       [tanvir, 48 * HOUR, "Sreemangal this weekend? Train leaves 6:40 on Friday."],
       [nadia, 47 * HOUR, "I'm in! Tea gardens + seven-layer tea"],
       [rafi, 47 * HOUR - 10 * MINUTE, "Count me in, I'll book the tickets"],
-      [ayesha, 46 * HOUR, "Same here. Who's bringing the speaker?"],
+      [sadia, 46 * HOUR, "Same here. Who's bringing the speaker?"],
       [tanvir, 46 * HOUR - 5 * MINUTE, "Got it covered 🔊"],
       [nadia, 2 * HOUR, "Found the view we talked about", { img: tea }],
       [rafi, 2 * HOUR - 6 * MINUTE, "Tickets booked: coach Ka, seats 21 to 24 ✅"],
-      [tanvir, 90 * MINUTE, "Legend. Meet at Kamalapur at 6:15?"],
+      [sadia, 90 * MINUTE, "Legend. Meet at Kamalapur at 6:15?"],
     ],
-    { [ayesha]: 90 * MINUTE, [rafi]: 90 * MINUTE, [nadia]: 2 * HOUR, [tanvir]: 90 * MINUTE }
+    { [nadia]: 90 * MINUTE, [tanvir]: 90 * MINUTE, [rafi]: 90 * MINUTE, [sadia]: 90 * MINUTE }
   );
 
-  // Rafi ↔ Tanvir
-  await writeChat(
-    directId(rafi, tanvir),
-    {
-      type: "direct",
-      participantIds: [rafi, tanvir].sort(),
-      createdBy: rafi,
-    },
-    [
-      [rafi, 20 * HOUR, "Can you send me the deployment checklist?"],
-      [tanvir, 19 * HOUR, "Sent it to your email. Ping me if anything's unclear"],
-      [rafi, 19 * HOUR - 2 * MINUTE, "Got it, thanks!"],
-    ],
-    { [rafi]: 19 * HOUR, [tanvir]: 19 * HOUR }
-  );
-
-  // Rafi has the group muted, to show private settings
-  await db.doc(`userChats/${rafi}`).set({
+  // Tanvir has the group muted, to show private settings
+  await db.doc(`userChats/${tanvir}`).set({
     prefs: { "demo-group-weekend-trip": { muted: true } },
   });
 
   console.log("Done. Demo accounts (password %s):", DEMO_PASSWORD);
-  for (const person of PEOPLE) {
+  for (const person of PEOPLE.slice(0, 2)) {
     console.log(`  ${emailFor(person.key).padEnd(24)} ${person.username}`);
   }
 };
