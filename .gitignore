@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local environment (Firebase key, TURN credentials)
+.env
+.env.*
+!.env.example
