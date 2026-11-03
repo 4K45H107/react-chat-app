@@ -58,7 +58,7 @@ See [docs/](./docs/README.md) for the data model, security rules, calls, testing
 
 ## Getting started
 
-Requirements: Node 22+, and Java 21+ for the Firebase emulators.
+Requirements: Node 24+, and Java 21+ for the Firebase emulators.
 
 ```bash
 npm install
