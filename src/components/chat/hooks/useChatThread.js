@@ -4,12 +4,11 @@ import {
   listenLatestMessages,
   loadOlderMessages,
   markChatAsSeen,
-  migrateLegacyMessages,
 } from "../../../lib/chatService";
 import { rateLimitToastMessage } from "../../../lib/rateLimit";
 
 /**
- * Live newest page + older pagination, scroll stickiness, and seen/migration.
+ * Live newest page + older pagination, scroll stickiness, and read markers.
  */
 export function useChatThread({ chatId, currentUserId }) {
   const [latestMessages, setLatestMessages] = useState([]);
@@ -20,7 +19,6 @@ export function useChatThread({ chatId, currentUserId }) {
   const endRef = useRef(null);
   const centerRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
-  const migratedRef = useRef(new Set());
   const oldestDocRef = useRef(null);
   const hasLoadedOlderRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
@@ -50,22 +48,6 @@ export function useChatThread({ chatId, currentUserId }) {
   }, [messages, isLoadingOlder]);
 
   useEffect(() => {
-    if (!chatId || migratedRef.current.has(chatId)) return;
-
-    migrateLegacyMessages(chatId)
-      .catch((error) => {
-        console.warn(
-          "[Chat] Legacy message migration skipped:",
-          error.code,
-          error.message
-        );
-      })
-      .finally(() => {
-        migratedRef.current.add(chatId);
-      });
-  }, [chatId]);
-
-  useEffect(() => {
     if (!chatId) return undefined;
 
     const unsub = listenLatestMessages(chatId, {
@@ -90,6 +72,13 @@ export function useChatThread({ chatId, currentUserId }) {
     return () => unsub();
   }, [chatId]);
 
+  // Mark the chat read when it opens and whenever someone else's message
+  // arrives while it's open.
+  const newestIncomingId = useMemo(() => {
+    const newest = latestMessages[latestMessages.length - 1];
+    return newest && newest.senderId !== currentUserId ? newest.id : null;
+  }, [latestMessages, currentUserId]);
+
   useEffect(() => {
     if (!chatId || !currentUserId) return;
 
@@ -100,7 +89,7 @@ export function useChatThread({ chatId, currentUserId }) {
         error.message
       );
     });
-  }, [chatId, currentUserId]);
+  }, [chatId, currentUserId, newestIncomingId]);
 
   const handleLoadOlder = async () => {
     if (

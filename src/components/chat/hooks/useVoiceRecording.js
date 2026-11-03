@@ -4,7 +4,7 @@ import {
   extensionForAudioMime,
   pickAudioMimeType,
 } from "../../../lib/audioRecord";
-import { sendMessage, syncSidebarPreview } from "../../../lib/chatService";
+import { sendMessage } from "../../../lib/chatService";
 import { rateLimitToastMessage } from "../../../lib/rateLimit";
 import upload from "../../../lib/upload";
 import { MAX_VOICE_SECONDS } from "../chatConstants";
@@ -189,6 +189,7 @@ export function useVoiceRecording({
               text: "",
               audio: audioUrl,
               audioDuration: Math.min(durationSec, MAX_VOICE_SECONDS),
+              preview: "Voice message",
             });
           } catch (sendError) {
             const limited = rateLimitToastMessage(sendError);
@@ -210,12 +211,6 @@ export function useVoiceRecording({
             }
             return;
           }
-
-          await syncSidebarPreview({
-            chatId,
-            currentUserId,
-            preview: "Voice message",
-          });
         } catch (error) {
           console.error(
             "[Chat] Failed to send voice message:",

@@ -4,20 +4,20 @@
  * @typedef {Object} AppUser
  * @property {string} id
  * @property {string} [username]
- * @property {string} [email]
  * @property {string} [avatar]
  * @property {string[]} blocked
  * @property {import("firebase/firestore").Timestamp|Date|null} [lastActive]
  *
+ * Sidebar item: a chat as the current user sees it.
  * @typedef {Object} ChatMeta
  * @property {string} chatId
  * @property {string} [receiverId]
  * @property {boolean} [isGroup]
  * @property {string} [groupName]
  * @property {string} [groupAvatar]
- * @property {string} lastMessage
+ * @property {string} lastMessage Preview text
  * @property {boolean} isSeen
- * @property {number} updatedAt
+ * @property {number} updatedAt Milliseconds
  * @property {boolean} [muted]
  * @property {boolean} [archived]
  * @property {AppUser} [user]
@@ -37,15 +37,23 @@
  * @property {import("firebase/firestore").Timestamp|Date|null} [editedAt]
  * @property {import("firebase/firestore").Timestamp|Date|null} [createdAt]
  *
+ * Shared chat document: chats/{chatId}. Direct chat ids are "<uidA>_<uidB>"
+ * with the two ids sorted.
  * @typedef {Object} ChatDoc
+ * @property {"direct"|"group"} type
  * @property {string[]} participantIds
- * @property {"direct"|"group"} [type]
+ * @property {string} createdBy
  * @property {string} [name]
  * @property {string} [avatar]
- * @property {string} [createdBy]
- * @property {import("firebase/firestore").Timestamp|Date|null} [createdAt]
+ * @property {import("firebase/firestore").Timestamp|Date|null} createdAt
+ * @property {import("firebase/firestore").Timestamp|Date|null} updatedAt Time of the newest message
+ * @property {{ text: string, senderId: string }} [lastMessage]
+ * @property {Record<string, import("firebase/firestore").Timestamp>} readAt Each member's read marker
  * @property {{ userId?: string|null, updatedAt?: number }} [typing]
- * @property {ChatMessage[]} [messages] Legacy array (migrated on open)
+ *
+ * Private settings: userChats/{uid}
+ * @typedef {Object} UserChatPrefs
+ * @property {Record<string, { muted?: boolean, archived?: boolean }>} prefs
  */
 
 export {};

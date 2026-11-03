@@ -15,6 +15,7 @@ import { normalizeUser } from "../../lib/normalizeUser";
 import upload from "../../lib/upload";
 import {
   leaveGroupChat,
+  listenChatPrefs,
   listenSharedPhotos,
   updateGroupAvatar,
   updateOwnChatFlags,
@@ -48,23 +49,19 @@ const Details = () => {
   useEffect(() => {
     if (!currentUser?.id || !chatId) return;
 
-    const unSub = onSnapshot(
-      doc(db, "userChats", currentUser.id),
-      (snap) => {
-        const entry = (snap.data()?.chats ?? []).find(
-          (chat) => chat.chatId === chatId
-        );
-        setMuted(Boolean(entry?.muted));
-        setArchived(Boolean(entry?.archived));
+    const unSub = listenChatPrefs(currentUser.id, {
+      onData: (prefs) => {
+        setMuted(Boolean(prefs[chatId]?.muted));
+        setArchived(Boolean(prefs[chatId]?.archived));
       },
-      (error) => {
+      onError: (error) => {
         console.warn(
           "[Details] Failed to listen for chat flags:",
           error.code,
           error.message
         );
-      }
-    );
+      },
+    });
 
     return () => unSub();
   }, [currentUser?.id, chatId]);
@@ -236,11 +233,7 @@ const Details = () => {
         return;
       }
 
-      await updateGroupAvatar({
-        chatId,
-        avatarUrl: imageUrl,
-        currentUserId: currentUser.id,
-      });
+      await updateGroupAvatar({ chatId, avatarUrl: imageUrl });
       useChatStore.setState({ groupAvatar: imageUrl });
       toast.success("Group photo updated");
     } catch (error) {
@@ -282,7 +275,7 @@ const Details = () => {
         <p>
           {isGroup
             ? `${memberCount} members`
-            : (user?.email ?? "")}
+            : "Direct message"}
         </p>
         {isGroup && (
           <>

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../../../lib/firebase";
+import { auth, db } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
 import upload from "../../../lib/upload";
 import { rateLimitToastMessage } from "../../../lib/rateLimit";
@@ -192,7 +192,7 @@ const EditProfile = ({ onClose }) => {
             </button>
           </div>
 
-          <p className="emailHint">{currentUser?.email}</p>
+          <p className="emailHint">{auth.currentUser?.email}</p>
 
           <div className="actions">
             <button
