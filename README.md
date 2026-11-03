@@ -1,104 +1,165 @@
 # React Chat App
 
-Real-time messaging app built with React, Vite, Zustand, and Firebase (Auth, Firestore, Storage), including 1:1 WebRTC voice and video calls.
+[![CI](https://github.com/4K45H107/react-chat-app/actions/workflows/ci.yml/badge.svg)](https://github.com/4K45H107/react-chat-app/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Supports 1:1 and group chats, media and voice messages, presence/typing indicators, and participant-scoped security rules with paginated message history.
+**Real-time chat with group messaging and WebRTC voice and video calls**, built on React and
+Firebase, with no backend of its own. Security rules do the job of an API's authorization layer,
+and they're tested like code.
 
----
+**Live demo: [reactchat-ed5f2.web.app](https://reactchat-ed5f2.web.app)**
+
+| Sign in as | Email | Password |
+| --- | --- | --- |
+| Nadia Karim | `nadia@reactchat.dev` | `Password123!` |
+| Tanvir Ahmed | `tanvir@reactchat.dev` | `Password123!` |
+
+Open the two accounts in two browsers (or a normal and a private window) to see messages arrive
+live and to call one another. The demo data resets every night.
+
+![Two windows side by side: a message sent by Nadia appears instantly for Tanvir, and his reply comes back](docs/screenshots/realtime.gif)
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Conversation with a photo, an edited message and a call log](docs/screenshots/chat.jpg) | ![Video call with a picture-in-picture self view](docs/screenshots/call.jpg) |
+| **Conversation:** photos, edits, call history, unread state | **Video call:** WebRTC, with a TURN relay for strict networks |
+| ![Group chat with the details panel: members, settings and shared photos](docs/screenshots/group.jpg) | ![Emoji picker open over the conversation](docs/screenshots/emoji.jpg) |
+| **Groups:** members, mute and archive, shared photos | **Emoji picker:** loaded on first use |
+| ![The same conversation in the light theme](docs/screenshots/chat-light.jpg) | ![Chat list and a conversation on a phone](docs/screenshots/mobile.jpg) |
+| **Light and dark themes** | **Responsive** down to phone size |
 
 ## Features
 
-| Area | Details |
-|------|---------|
-| Messaging | 1:1 and group chats, Enter-to-send, emoji, soft-delete, edit, in-thread search |
-| Real-time | Live thread and sidebar, typing indicators, online/offline presence |
-| Media | Image messages, camera capture, voice notes, shared photos grid |
-| Calls | 1:1 voice and video (WebRTC + Firestore signaling), call history in-thread |
-| UX | Unread state, archive/mute, block/unblock, light/dark themes, browser notifications |
-| Security | Participant-scoped Firestore rules, message field validation, Storage path locks, upload rate limits |
-
----
-
-## Tech stack
-
-| Layer | Choice |
-|-------|--------|
-| UI | React 18, Vite 5, CSS |
-| State | Zustand |
-| Backend | Firebase Auth, Firestore (persistent local cache), Storage |
-| Calls | WebRTC (STUN + Metered TURN relay) |
-| Tooling | ESLint, Vitest, Firebase Emulator Suite, size-limit, GitHub Actions |
-
----
+| Area | What it does |
+| --- | --- |
+| Messaging | One-to-one and group chats, edit, soft delete, emoji, search inside a chat, paginated history |
+| Real time | Live sidebar and thread, typing indicator, online status, read state, browser notifications |
+| Media | Photos, camera capture, voice notes, shared photos panel |
+| Calls | One-to-one voice and video over WebRTC, ringing, busy and missed states, call history in the thread |
+| People | Find users, start a chat once per pair, block and unblock, mute and archive, leave a group |
+| Polish | Light and dark themes, phone layout, keyboard navigation and ARIA labels |
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    B[React app<br/>Firebase Hosting] -->|Auth| A[Firebase Auth]
+    B -->|live queries, writes| F[(Firestore)]
+    B -->|photos, voice notes| S[(Cloud Storage)]
+    F -. enforced by .-> R[Security rules<br/>36 tests]
+    S -. enforced by .-> R
+    B <-->|call signaling| F
+    B <-->|media, peer to peer| B2[Other browser]
+    B <-->|media relay on strict networks| T[Metered TURN]
 ```
-React UI  →  Zustand stores  →  chatService / callService  →  Firebase
-                                      ↓
-                         firestore.rules + storage.rules
-```
 
-- The sidebar is a live query over the chats you're a member of; each chat holds its last-message preview and a read marker per member. No user writes another user's documents.
-- Access control lives in security rules, covered by 36 emulator tests: members only, fields validated, server timestamps, blocking enforced.
-- Calls use Firestore for offer / answer / ICE; media goes peer to peer, or through a TURN relay on strict networks.
-- The login screen loads only React and Firebase Auth (84 KB gzip); the rest of the app loads after sign-in.
+- **No backend of its own:** the app talks to Firebase directly, and **security rules are the
+  authorization layer**.
+- **The sidebar is a query** over the chats you belong to. Each chat holds its last-message preview
+  and a read marker per member, so **no user ever writes another user's documents**.
+- **Calls** use Firestore to exchange the WebRTC offer, answer and ICE candidates. Media goes peer
+  to peer, or through the TURN relay when the networks can't connect directly.
+- **Data access** lives in two service modules (`chatService`, `callService`). Components never
+  touch the data model directly.
 
-See [docs/](./docs/README.md) for the data model, security rules, calls, testing and decision records.
+Why each of these was chosen: [architecture decision records](docs/adr/README.md).
 
----
+## Security
 
-## Limitations
+| Rule | Enforced in `firestore.rules` |
+| --- | --- |
+| Members only | Strangers can't read or list a chat or its messages |
+| Private settings | Mute and archive live in a document only its owner can read |
+| No impersonation | Messages, previews and read markers are written as yourself, at server time |
+| No backdating | Message and edit timestamps must equal `request.time` |
+| One chat per pair | Direct chat ids are the sorted pair of user ids |
+| Groups | Members can leave; nobody can add or remove anyone else |
+| Blocking | Messages, new chats and calls are refused once either side blocks |
+| Calls | Only the callee can answer or decline; an ended call can't be reopened |
+| No emails exposed | Profiles hold no email; the rules reject one |
 
-- Voice/video calls are **1:1 only** (not group).
-- Call cleanup runs in the clients; connectivity across strict networks relies on the TURN relay.
-- Upload rate limits run in the client; Storage rules still cap file size and type.
+The rules are covered by **36 tests** on the Firestore emulator. Run against the rules this
+project started with, 18 of them fail, one for each hole that was closed.
+[Data model and security](docs/data-model.md)
 
----
+## Performance
 
-## Getting started
+The bundle is split at sign-in: the login screen downloads only React and Firebase Auth, and the
+signed-in app is prefetched while the user types their password.
+
+| | Before | After |
+| --- | --- | --- |
+| JavaScript for the first screen (gzip) | 282 KB | **84 KB** |
+| Emoji picker (62 KB gzip) | always | on first open |
+| Firebase Storage (12 KB gzip) | always | on first upload |
+
+Size budgets for each chunk run in CI, so it can't quietly grow back.
+
+## Quality
+
+- **36 rules tests** and **11 integration tests** run against the Firebase emulators. The
+  integration tests drive the app's real services through sign-in, messaging, groups, calls,
+  blocking and sign-up.
+- **Unit tests**, ESLint with zero warnings, and bundle size budgets.
+- **CI on every pull request**, and **auto-deploy** to Firebase Hosting from `main` once
+  everything passes.
+
+## Tech stack
+
+| Area | Choices |
+| --- | --- |
+| UI | React 18, Vite 5, CSS with theme variables |
+| State | Zustand |
+| Backend services | Firebase Auth, Firestore (offline cache), Cloud Storage, Firebase Hosting |
+| Calls | WebRTC, Firestore signaling, Metered TURN |
+| Testing | Vitest, `@firebase/rules-unit-testing`, Firebase Emulator Suite |
+| Tooling | ESLint, size-limit, GitHub Actions |
+
+## Running it locally
 
 Requirements: Node 24+, and Java 21+ for the Firebase emulators.
 
+Everything runs against local emulators, with the same demo data as the live site:
+
 ```bash
 npm install
-cp .env.example .env   # add your Firebase web API key (and TURN credentials for calls)
-npm run dev
+npm run emulators         # terminal 1: Auth, Firestore, Storage (UI on :4000)
+npm run seed:emulators    # terminal 2: demo accounts and chats
+npm run dev:emulators     # terminal 2: open the URL, sign in as nadia@reactchat.dev / Password123!
 ```
 
-Or run everything locally against the emulators, with demo data:
+To run against a Firebase project instead, copy `.env.example` to `.env`, fill in the values,
+and run `npm run dev`.
 
-```bash
-npm run emulators         # terminal 1
-npm run seed:emulators    # terminal 2
-npm run dev:emulators     # terminal 2, then sign in as nadia@reactchat.dev / Password123!
-```
-
-| Script | Purpose |
-|--------|---------|
-| `npm run dev` | Local development server |
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Development server |
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
-| `npm test` | Unit tests (Vitest) |
+| `npm test` | Unit tests |
 | `npm run test:rules` | Firestore rules tests (emulator) |
 | `npm run test:integration` | End-to-end flows against seeded emulators |
 | `npm run size` | Bundle size budgets (after a build) |
 
----
-
 ## Documentation
 
-| Doc | Contents |
-|-----|----------|
-| [docs/architecture.md](./docs/architecture.md) | Stack, folders, state, code splitting |
-| [docs/data-model.md](./docs/data-model.md) | Collections, fields, indexes, security model |
-| [docs/calls.md](./docs/calls.md) | WebRTC calls: signaling, call states, relay |
-| [docs/testing.md](./docs/testing.md) | Emulators, rules and integration tests, demo data, CI |
-| [docs/deployment.md](./docs/deployment.md) | Firebase Hosting, deploy pipeline, nightly demo reset |
-| [docs/adr/](./docs/adr/README.md) | Architecture decision records |
+| Doc | What's in it |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Stack, folders, state, code splitting |
+| [Data model and security](docs/data-model.md) | Collections, fields, indexes, what the rules allow |
+| [Calls](docs/calls.md) | WebRTC signaling, call states, the TURN relay |
+| [Testing](docs/testing.md) | Emulators, rules and integration tests, demo data, CI |
+| [Deployment](docs/deployment.md) | Hosting, the deploy pipeline, the nightly demo reset |
+| [Decision records](docs/adr/README.md) | Why it's built this way |
 
----
+## Limitations
+
+- Calls are one-to-one; group chats have messaging only.
+- Upload rate limits run in the client; Storage rules still cap file size and type.
+- Notifications use the browser Notification API, so they need an open tab.
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](./LICENSE) © Fahad Ahmed Akash
