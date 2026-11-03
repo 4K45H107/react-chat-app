@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { doc, updateDoc } from "firebase/firestore";
-import { auth, db } from "../../../lib/firebase";
+import { auth } from "../../../lib/firebase";
+import { db } from "../../../lib/db";
 import { useUserStore } from "../../../lib/userStore";
 import upload from "../../../lib/upload";
 import { rateLimitToastMessage } from "../../../lib/rateLimit";

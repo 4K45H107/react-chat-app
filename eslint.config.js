@@ -5,9 +5,9 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  { ignores: ['dist', 'coverage'] },
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,mjs}'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -35,5 +35,10 @@ export default [
         { allowConstantExport: true },
       ],
     },
+  },
+  // Node: seed script, emulator test suites and tool configs
+  {
+    files: ['scripts/**', 'tests/**', '*.config.js'],
+    languageOptions: { globals: globals.node },
   },
 ]

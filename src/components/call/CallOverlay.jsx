@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { db } from "../../lib/db";
 import { useUserStore } from "../../lib/userStore";
 import { useCallStore } from "../../lib/callStore";
 import {
@@ -27,6 +27,7 @@ import {
   CALL_RING_TIMEOUT_MS,
   RTC_CONFIGURATION,
 } from "../../lib/webrtcConfig";
+import { START_CALL_EVENT } from "../../lib/callEvents";
 import "./CallOverlay.css";
 
 const CONNECT_FAIL_MS = 25_000;
@@ -41,8 +42,9 @@ const stopStream = (stream) => {
   stream?.getTracks?.().forEach((track) => track.stop());
 };
 
+// Call signaling trace, for development only
 const logCall = (...args) => {
-  console.log("[Call]", ...args);
+  if (import.meta.env.DEV) console.log("[Call]", ...args);
 };
 
 const CallOverlay = () => {
@@ -567,8 +569,8 @@ const CallOverlay = () => {
       if (!detail) return;
       startOutgoing(detail);
     };
-    window.addEventListener("rca:start-call", handler);
-    return () => window.removeEventListener("rca:start-call", handler);
+    window.addEventListener(START_CALL_EVENT, handler);
+    return () => window.removeEventListener(START_CALL_EVENT, handler);
   }, [startOutgoing]);
 
   const acceptIncoming = async () => {
@@ -809,11 +811,3 @@ const CallOverlay = () => {
 };
 
 export default CallOverlay;
-
-export const requestStartCall = ({ type, partner, activeChatId }) => {
-  window.dispatchEvent(
-    new CustomEvent("rca:start-call", {
-      detail: { type, partner, activeChatId },
-    })
-  );
-};

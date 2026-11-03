@@ -1,17 +1,17 @@
+// Firebase app + Auth only. The login screen needs nothing else, so Firestore
+// (src/lib/db.js) and Storage (src/lib/storage.js) live in their own modules
+// and load in a later chunk.
 import { initializeApp } from "firebase/app";
 import {
-  connectFirestoreEmulator,
-  initializeFirestore,
-  memoryLocalCache,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-} from "firebase/firestore";
-import { connectAuthEmulator, getAuth } from "firebase/auth";
-import { connectStorageEmulator, getStorage } from "firebase/storage";
+  browserLocalPersistence,
+  connectAuthEmulator,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from "firebase/auth";
 
 // `npm run dev:emulators` talks to the local Firebase emulators instead of
 // the live project.
-const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
+export const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
 
 const firebaseConfig = useEmulators
   ? {
@@ -28,20 +28,14 @@ const firebaseConfig = useEmulators
       appId: "1:154253592516:web:27d64937a8baf2a05e0691",
     };
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
-export const db = initializeFirestore(app, {
-  localCache: useEmulators
-    ? memoryLocalCache()
-    : persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+// initializeAuth instead of getAuth: the app only uses email/password, so it
+// skips the popup/redirect sign-in code that getAuth bundles.
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
 });
-export const auth = getAuth(app);
-export const storage = getStorage(app);
 
 if (useEmulators) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
-  connectStorageEmulator(storage, "127.0.0.1", 9199);
 }

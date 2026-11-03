@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import "./UserInfo.css";
 import { toast } from "react-toastify";
 import { auth } from "../../../lib/firebase";

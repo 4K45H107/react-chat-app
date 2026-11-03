@@ -1,12 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import "./Login.css";
 import { toast } from "react-toastify";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { auth, db } from "../../lib/firebase";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { auth } from "../../lib/firebase";
 import upload from "../../lib/upload";
 import { useUserStore } from "../../lib/userStore";
 
@@ -122,6 +121,12 @@ const Login = () => {
 
       // Write profile before avatar upload so auth bootstrap can find the doc
       // (onAuthStateChanged fires as soon as Auth is created).
+      // Firestore isn't part of the login chunk; load it for the profile write.
+      const [{ doc, setDoc, updateDoc }, { db }] = await Promise.all([
+        import("firebase/firestore"),
+        import("../../lib/db"),
+      ]);
+
       // Public profile only: the email stays in Firebase Auth.
       await setDoc(doc(db, "users", cred.user.uid), {
         username,

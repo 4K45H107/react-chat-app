@@ -1,5 +1,3 @@
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { storage } from "./firebase";
 import { assertRateLimit } from "./rateLimit";
 
 /**
@@ -16,10 +14,14 @@ const upload = async (file, { uid, folder = "images", fileName } = {}) => {
   const safeFolder = folder === "audio" ? "audio" : "images";
   const rawName =
     fileName || file.name || (safeFolder === "audio" ? "voice.webm" : "image");
-  const safeName = String(rawName).replace(/[^\w.\-]+/g, "_");
+  const safeName = String(rawName).replace(/[^\w.-]+/g, "_");
   const path = uid
     ? `${safeFolder}/${uid}/${Date.now()}_${safeName}`
     : `${safeFolder}/${Date.now()}_${safeName}`;
+
+  // Storage loads on the first upload, not with the app.
+  const [{ getDownloadURL, ref, uploadBytesResumable }, { storage }] =
+    await Promise.all([import("firebase/storage"), import("./storage")]);
 
   const storageRef = ref(storage, path);
   const metadata =

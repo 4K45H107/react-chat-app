@@ -16,7 +16,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "./db";
 
 export const MESSAGE_PAGE_SIZE = 30;
 

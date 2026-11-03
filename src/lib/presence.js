@@ -1,5 +1,5 @@
 import { doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "./db";
 
 /** Consider a user online if lastActive is within this window. */
 export const ONLINE_THRESHOLD_MS = 90_000;

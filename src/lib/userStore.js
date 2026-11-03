@@ -1,7 +1,9 @@
-import { doc, getDoc } from "firebase/firestore";
 import { create } from "zustand";
-import { db } from "./firebase";
 import { normalizeUser } from "./normalizeUser";
+
+/** Firestore loads only once someone is signed in (not for the login screen). */
+const loadFirestore = () =>
+  Promise.all([import("firebase/firestore"), import("./db")]);
 
 /** Ignore overlapping fetchUserInfo results (signup race with onAuthStateChanged). */
 let fetchSeq = 0;
@@ -18,6 +20,17 @@ export const useUserStore = create((set) => ({
       if (seq === fetchSeq) set({ currentUser: null, isLoading: false });
       return;
     }
+
+    let firestore;
+    try {
+      firestore = await loadFirestore();
+    } catch (error) {
+      console.error("[userStore] Failed to load Firestore:", error);
+      if (seq === fetchSeq) set({ currentUser: null, isLoading: false });
+      return;
+    }
+    if (seq !== fetchSeq) return;
+    const [{ doc, getDoc }, { db }] = firestore;
 
     // Signup creates Auth before the users/{uid} doc exists; retry briefly.
     const maxAttempts = 8;

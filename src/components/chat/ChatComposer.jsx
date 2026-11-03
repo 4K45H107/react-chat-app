@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import EmojiPicker, { Theme } from "emoji-picker-react";
 import { formatAudioClock } from "../../lib/audioRecord";
 import { getStoredTheme } from "../../lib/theme";
 import { EMOJI_PICKER_WIDTH } from "./chatConstants";
 import { getEmojiPickerPosition } from "./emojiPickerPosition";
+
+// The picker is about a fifth of the app's code, so it loads on first use.
+// Hovering or focusing the button starts the download early.
+const loadEmojiPicker = () => import("emoji-picker-react");
+const EmojiPicker = lazy(loadEmojiPicker);
+const preloadEmojiPicker = () => {
+  loadEmojiPicker().catch(() => {});
+};
 
 export default function ChatComposer({
   isChatBlocked,
@@ -171,6 +178,8 @@ export default function ChatComposer({
               aria-expanded={openEmoji}
               disabled={isChatBlocked || isSending}
               onClick={handleToggleEmojiPicker}
+              onMouseEnter={preloadEmojiPicker}
+              onFocus={preloadEmojiPicker}
             >
               <span className="emojiGlyph" aria-hidden="true">
                 😊
@@ -190,15 +199,24 @@ export default function ChatComposer({
                   role="dialog"
                   aria-label="Emoji picker"
                 >
-                  <EmojiPicker
-                    theme={
-                      getStoredTheme() === "light" ? Theme.LIGHT : Theme.DARK
+                  <Suspense
+                    fallback={
+                      <div
+                        className="emojiPickerLoading"
+                        style={{ width: EMOJI_PICKER_WIDTH, height: 420 }}
+                      >
+                        Loading emoji…
+                      </div>
                     }
-                    onEmojiClick={handleEmoji}
-                    autoFocusSearch={false}
-                    width={EMOJI_PICKER_WIDTH}
-                    height={420}
-                  />
+                  >
+                    <EmojiPicker
+                      theme={getStoredTheme() === "light" ? "light" : "dark"}
+                      onEmojiClick={handleEmoji}
+                      autoFocusSearch={false}
+                      width={EMOJI_PICKER_WIDTH}
+                      height={420}
+                    />
+                  </Suspense>
                 </div>,
                 document.body
               )}

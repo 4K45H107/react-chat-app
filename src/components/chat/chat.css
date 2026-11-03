@@ -764,6 +764,19 @@
   overflow: hidden;
 }
 
+/* Shown for the moment the picker's chunk is downloading */
+.emojiPickerLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-solid);
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
 @keyframes voicePulse {
   0%,
   100% {

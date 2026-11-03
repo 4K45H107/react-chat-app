@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./ChatList.css";
 import { toast } from "react-toastify";
 import AddUser from "./addUser/AddUser";
@@ -6,7 +6,7 @@ import CreateGroup from "./createGroup/CreateGroup";
 import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../../lib/firebase";
+import { db } from "../../../lib/db";
 import { normalizeUser } from "../../../lib/normalizeUser";
 import {
   getChatActivity,

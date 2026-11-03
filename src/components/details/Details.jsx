@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./details.css";
 import { toast } from "react-toastify";
 import {
@@ -8,7 +8,7 @@ import {
   onSnapshot,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { db } from "../../lib/db";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import { normalizeUser } from "../../lib/normalizeUser";
