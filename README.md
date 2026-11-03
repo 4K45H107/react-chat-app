@@ -94,6 +94,7 @@ npm run dev:emulators     # terminal 2, then sign in as nadia@reactchat.dev / Pa
 | [docs/data-model.md](./docs/data-model.md) | Collections, fields, indexes, security model |
 | [docs/calls.md](./docs/calls.md) | WebRTC calls: signaling, call states, relay |
 | [docs/testing.md](./docs/testing.md) | Emulators, rules and integration tests, demo data, CI |
+| [docs/deployment.md](./docs/deployment.md) | Firebase Hosting, deploy pipeline, nightly demo reset |
 | [docs/adr/](./docs/adr/README.md) | Architecture decision records |
 
 ---

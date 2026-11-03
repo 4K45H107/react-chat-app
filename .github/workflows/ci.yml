@@ -45,3 +45,31 @@ jobs:
       - run: npm ci
       - run: npm run test:rules
       - run: npm run test:integration
+
+  deploy:
+    name: Deploy to Firebase Hosting
+    # Only from main, and only after every check has passed
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [checks, emulator-tests]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://reactchat-ed5f2.web.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_TURN_USERNAME: ${{ secrets.VITE_TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.VITE_TURN_CREDENTIAL }}
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_REACTCHAT_ED5F2 }}
+          projectId: reactchat-ed5f2
+          channelId: live
