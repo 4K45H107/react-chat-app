@@ -1,29 +1,35 @@
 /**
- * ICE servers for portfolio demos.
- * STUN finds public addresses; TURN relays when direct peer connection fails
- * (common across different networks / strict NAT).
- *
- * Open Relay (Metered) free TURN is for testing — fine for a portfolio showcase.
+ * ICE servers for calls.
+ * STUN finds each peer's public address, which is enough for most calls.
+ * TURN relays the media when a direct connection fails (strict NAT, mobile
+ * and office networks). Metered's relay is used when credentials are set in
+ * the environment (see .env.example); without them calls fall back to STUN.
+ * TURN credentials always reach the browser; the plan's quota caps misuse.
  */
+const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME;
+const TURN_CREDENTIAL = import.meta.env.VITE_TURN_CREDENTIAL;
+
+const TURN_URLS = [
+  "turn:global.relay.metered.ca:80",
+  "turn:global.relay.metered.ca:80?transport=tcp",
+  "turn:global.relay.metered.ca:443",
+  "turns:global.relay.metered.ca:443?transport=tcp",
+];
+
+const HAS_TURN = Boolean(TURN_USERNAME && TURN_CREDENTIAL);
+
 export const RTC_CONFIGURATION = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
+    { urls: ["stun:stun.relay.metered.ca:80", "stun:stun.l.google.com:19302"] },
+    ...(HAS_TURN
+      ? [
+          {
+            urls: TURN_URLS,
+            username: TURN_USERNAME,
+            credential: TURN_CREDENTIAL,
+          },
+        ]
+      : []),
   ],
 };
 
